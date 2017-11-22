@@ -1,6 +1,7 @@
 #pragma once
+#include <stdint.h>
 
 bool serial_init();
-int serial_try_read(char *buf, size_t bufsize);
 void serial_write(const char *str);
 void serial_close();
+int serial_read_or_timeout(char *buf, size_t bufsize, uint64_t timeout);

@@ -23,7 +23,6 @@ void set_terminal_mode();
 void reset_terminal_mode();
 
 //my prototypes
-uint64 time_in_ms();
 void wait_for_user();
 
 int main(int argc, char **argv)
@@ -33,7 +32,7 @@ int main(int argc, char **argv)
     
     if(!serial_init())
     {
-        //exit(1);
+        exit(1);
     }    
     test_run_all(&wait_for_user);
 
@@ -46,18 +45,6 @@ void wait_for_user()
 {
     printf("Press any key to continue\n");
     while(getchar() == EOF){}
-}
-
-
-uint64 time_in_ms()
-{
-    uint64 ms; // Milliseconds
-    struct timespec spec;
-
-    clock_gettime(CLOCK_MONOTONIC, &spec);
-    ms = (uint64)((uint64)round(spec.tv_nsec / 1000000) + (uint64)(spec.tv_sec * 1000)); // Convert nanoseconds to milliseconds   
-
-    return ms;
 }
 
 

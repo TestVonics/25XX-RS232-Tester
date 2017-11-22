@@ -1,5 +1,6 @@
 #pragma once
-
+#include <stdbool.h>
+//#include <stdint.h>
 typedef void(*wait_func)(void);
 typedef bool(*yes_no_func)(void);
 typedef double(*double_func)(void);

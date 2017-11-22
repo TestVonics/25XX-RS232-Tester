@@ -2,6 +2,8 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#include "serial.h"
+
 typedef bool (*test_func)(void);
 typedef unsigned int uint;
 
@@ -12,6 +14,7 @@ typedef struct TEST {
     test_func test;    
 } TEST;
 
+bool test_0();
 bool test_1();
 bool test_2();
 bool test_3();
@@ -39,11 +42,21 @@ static TEST Tests[] = {
 
 #define NUM_TESTS (sizeof(Tests)/sizeof(Tests[0]))
 
+bool test_0()
+{
+    char buf[256];
+    serial_write("*IDN?");
+    int n;
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) > 0)    
+        return true;
+    return false;
+}
 bool test_1()
 {
     char buf[256];
-    serial_write("*IDN"); 
-    while(serial_try_read(buf, sizeof(buf)) <= 0){}
+    if(!status_check())
+        return false;
+
     return true;
 }
 
@@ -55,6 +68,10 @@ bool test_2()
 
 void test_run_all(wait_func waitfun)
 {
+    //if *IDN? doesn't work, exit
+    if(!test_0())
+        return;
+    
     uint passed_cnt = 0;
     for(uint i = 0; i < NUM_TESTS; i++)
     {
