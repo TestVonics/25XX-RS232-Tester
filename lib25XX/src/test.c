@@ -1,8 +1,10 @@
-#include "test.h"
 #include <stdbool.h>
 #include <stdio.h>
+#include <unistd.h>
 
 #include "serial.h"
+#include "status.h"
+#include "test.h"
 
 typedef bool (*test_func)(void);
 typedef unsigned int uint;
@@ -44,19 +46,116 @@ static TEST Tests[] = {
 
 bool test_0()
 {
-    char buf[256];
-    serial_write("*IDN?");
     int n;
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) > 0)    
-        return true;
-    return false;
+    char buf[256];
+
+    //clear any errors to start with 
+    serial_write("*CLS");
+
+    //dump this information to screen for the user
+    serial_write("*IDN?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;
+
+    //start out vented
+    serial_write(":SYST:MODE VENT");
+
+    /*
+    serial_write(":SYST:MODE CTRL");
+
+    serial_write(":CONT:PS:MAXSETP?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;
+
+    serial_write(":CONT:PS:MAXRATE?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;
+
+    serial_write(":CONT:PS:SETP?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;
+
+    serial_write(":CONT:PS:RATE?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;
+
+
+    serial_write(":CONT:PT:MAXSETP?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;
+
+    serial_write(":CONT:PT:MAXRATE?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;
+
+    serial_write(":CONT:PT:SETP?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;
+
+    serial_write(":CONT:PT:RATE?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;
+
+    serial_write(":SYST:ERR?");    
+    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+        return false;    */
+
+    return true;
 }
 bool test_1()
 {
     char buf[256];
-    if(!status_check())
+    if(!status_is_idle())
         return false;
 
+    //put it in control
+    serial_write(":SYST:MODE CTRL");
+    if(!command_try_expect(":SYST:MODE?", "CTRL"))
+        return false;
+
+    //dual test
+    serial_write(":CONT:MODE DUAL"); 
+    if(!command_try_expect(":CONT:MODE?", "DUAL"))
+        return false;
+
+    //set PS
+    serial_write(":CONT:PS:UNITS FT");
+    if(!command_try_expect(":CONT:PS:UNITS?", "FT"))
+        return false;
+    serial_write(":CONT:PS:SETP -2000");
+    if(!command_try_expect(":CONT:PS:SETP?", "-2000"))
+        return false;
+    serial_write(":CONT:PS:RATE 50000");
+    if(!command_try_expect(":CONT:PS:RATE?", "50000"))
+        return false;
+
+
+    //set PT
+    serial_write(":CONT:PT:UNITS KTS");
+    if(!command_try_expect(":CONT:PT:UNITS?", "KTS"))
+        return false;
+    serial_write(":CONT:PT:SETP 1000");
+    if(!command_try_expect(":CONT:PT:SETP?", "1000"))
+        return false;
+    serial_write(":CONT:PT:RATE 800");
+    if(!command_try_expect_float(":CONT:PT:RATE?", 800))
+        return false;
+
+    //EXECUTE
+    serial_write(":CONT:EXEC");
+    sleep(1);
+    StatOperEven soe;
+    //While we are ramping, check every 5 seconds
+    while(((soe = command_StatOperEven()).opr & (OPR_PS_RAMPING | OPR_PT_RAMPING)) != 0)
+    { 
+        printf("DUAL CHANNEL RAMPING\n");        
+        sleep(5);
+    }
+
+    //When the loop exits we better be stable    
+    if((soe.opr & OPR_STABLE) != 0)
+        return false;    
+    
     return true;
 }
 
@@ -93,7 +192,15 @@ void test_run_all(wait_func waitfun)
         {
             printf("Test #%u FAILED\n", i+1);
         }
+
+        //disconnect remote
+        //serial_write(":SYST:REMOTE DISABLE");
         waitfun();  
+
+        //go to ground
+        serial_write(":CONT:GTGR");
+
+        
     }
 
     printf("\nTests complete %u/%lu PASSED\n", passed_cnt, NUM_TESTS);

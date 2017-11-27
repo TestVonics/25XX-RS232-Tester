@@ -85,6 +85,18 @@ int serial_read_or_timeout(char *buf, size_t bufsize, uint64_t timeout)
     return n;
 }
 
+bool serial_integer_cmd(const char *cmd, int *result)
+{
+    serial_write(cmd);
+    char buf[256];
+    int n = serial_read_or_timeout(buf, sizeof(buf), 5000);
+    if( n <= 0)
+        return false; 
+
+    *result = atoi(buf);
+    return true;
+}
+
 
 void serial_write(const char *str)
 {   
