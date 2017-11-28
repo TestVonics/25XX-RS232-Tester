@@ -63,37 +63,76 @@ typedef enum {
 } OPR;
 
 
-bool status_is_idle();
+typedef enum {
+    CTRL_OP_PS        = 1 << 0,
+    CTRL_OP_PT        = 1 << 1,
+    CTRL_OP_DUAL      = (CTRL_OP_PS | CTRL_OP_PT)
+} CTRL_OP;
 
+bool status_is_idle();
 bool command_try_expect(const char *msg, const char *expected_result);
 bool command_try_expect_float(const char *msg, double expected_result);
 
+//Interface notes - below some interfaces are declared
+//A macros are provided to IMPLEMENT them as an unnamed (anon) struct 
+//The macros would be unneeded and could be cleaner if we enabled -fms-extensions
+//but it is not standard c. References:
+//https://gcc.gnu.org/onlinedocs/gcc/Unnamed-Fields.html
+//https://modelingwithdata.org/arch/00000113.htm
 
-typedef struct IBaseCommand {
-    int result;
-    bool succeed;
-} IBaseCommand;
-//declare as unnamed struct so we can access the members of IBaseCommand directly in structs that implement it
-#define IBASECOMMAND struct { \
-int result; \
-bool succeed; \
+typedef enum {
+    EXP_TYPE_STR      = 1 << 0,
+    EXP_TYPE_FP       = 1 << 1,
+} EXP_TYPE;
+
+//Declare SetCommand abstract type
+#define SetCommand_MEMBERS \
+    const EXP_TYPE   type; \
+    char cmd[32]; \
+    const char *cmd_verify;
+typedef struct SetCommand {
+    SetCommand_MEMBERS;
+} SetCommand;  
+#define IMPLEMENT_SetCommand struct { \
+    SetCommand_MEMBERS; \
 };
 
+typedef struct SetCommandExpectString {
+    IMPLEMENT_SetCommand;
+    const char *expected;
+} SetCommandExpectString;
+//if there isn't data pass an empty string not NULL for cmd_data, or just dont use the constructor
+SetCommandExpectString SetCommandExpectString_construct(const char *cmd, const char *cmd_data, const char *cmd_verify);
 
-/* Command StatQuesEven implements IBaseCommand */
+typedef struct SetCommandExpectFP {
+    IMPLEMENT_SetCommand;
+    double     expected;
+} SetCommandExpectFP;
+SetCommandExpectFP SetCommandExpectFP_construct(const char *cmd, const char *cmd_data, const char *cmd_verify, double expected);
+
+//Declare an interface for command results
+#define ICommandResult_MEMBERS \
+    int result; \
+    int succeed;
+typedef struct ICommandResult {
+    ICommandResult_MEMBERS;
+} ICommandResult;
+#define IMPLEMENT_ICommandResult struct { \
+    ICommandResult_MEMBERS; \
+};
+
 typedef struct StatQuesEven {
     union
     {
-        IBASECOMMAND;
+        IMPLEMENT_ICommandResult;
         QUE      que;
     };    
 } StatQuesEven;
 
-/* Command StatOperEven implements IBaseCommand */
 typedef struct StatOperEven {
     union
     {
-        IBASECOMMAND;
+        IMPLEMENT_ICommandResult;
         OPR      opr;
     };
 } StatOperEven;
@@ -101,7 +140,7 @@ typedef struct StatOperEven {
 typedef struct STBCommand {
     union
     {
-        IBASECOMMAND;
+        IMPLEMENT_ICommandResult;
         STB      stb;
     };
 
@@ -110,10 +149,11 @@ typedef struct STBCommand {
 typedef struct ESR {
     union
     {
-       IBASECOMMAND;
+       IMPLEMENT_ICommandResult;
        ESB      esb;
     };
 
 } ESR;
 
 StatOperEven command_StatOperEven();
+bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate);

@@ -12,6 +12,7 @@
 #include <stdbool.h>
 
 #include "utility.h"
+#include "serial.h"
 
 typedef uint8_t byte;
 typedef uint64_t uint64;
