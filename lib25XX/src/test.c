@@ -1,10 +1,12 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "serial.h"
 #include "status.h"
 #include "test.h"
+#include "control.h"
 
 typedef bool (*test_func)(void);
 typedef unsigned int uint;
@@ -58,7 +60,7 @@ bool test_0()
         return false;
 
     //start out vented
-    serial_write(":SYST:MODE VENT");
+    //serial_write(":SYST:MODE VENT");
 
     /*
     serial_write(":SYST:MODE CTRL");
@@ -103,11 +105,12 @@ bool test_0()
     return true;
 }
 bool test_1()
-{    
+{   
+    /* 
     if(!status_is_idle())
-        return false;   
+        return false;*/   
     
-    return control_dual_FK("-2000", "50000", "1000", "800");
+    return control_dual_FK("-2000", "50000", "1000", "800", 120000);
 }
 
 
@@ -124,7 +127,27 @@ void test_run_all(wait_func waitfun)
     
     uint passed_cnt = 0;
     for(uint i = 0; i < NUM_TESTS; i++)
-    {
+    {       
+        while(!status_is_idle()){
+            //serial_write(":SYST:MODE VENT"); //destroy our equipment before each test because :CONT:GTGR doesn't work 
+            if(!status_is_idle()) 
+            {
+                serial_write(":SYST:MODE CTRL");
+                serial_write(":CONT:MODE DUAL");       
+                serial_write(":CONT:GTGR");
+                char buf[256];
+                if(serial_read_or_timeout(buf, sizeof(buf), 1000) > 0) //catch "ERROR" from ":CONT:GTGR"
+                {
+                    if(strncmp(buf, "ERROR", strlen("ERROR")) == 0)
+                    {
+                        serial_write(":SYST:ERR?");  
+                        serial_read_or_timeout(buf, sizeof(buf), 1000);    
+                    }
+                }
+                sleep(4); 
+            }              
+        };
+
         printf("\nTest #%u: %s\n", i+1, Tests[i].test_name);
         printf("SETUP: %s\n", Tests[i].setup);
         if(Tests[i].user_task == NULL)
@@ -146,14 +169,9 @@ void test_run_all(wait_func waitfun)
 
         //disconnect remote
         //serial_write(":SYST:REMOTE DISABLE");
-        waitfun();  
-
-        //go to ground
-        serial_write(":CONT:GTGR");
-
-        
+        waitfun();          
     }
-
+    serial_write(":CONT:GTGR");
     printf("\nTests complete %u/%lu PASSED\n", passed_cnt, NUM_TESTS);
 
 }
