@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "command.h"
 #include "control.h"
@@ -29,14 +30,22 @@ bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const 
     return control(CTRL_OP_DUAL, exp_time);
 }
 
+bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time)
+{
+    if(!control_setup(CTRL_OP_DUAL, "INHG", "INHG", ps, ps_rate, pt, pt_rate))
+        return false;
+
+    return control(CTRL_OP_DUAL, exp_time);
+}
+
 bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate)
 {
-    SetCommand *commands[8];
+    const SetCommandFull *commands[8];
     int command_index = 2;
 
     //control mode
     static const SetCommandExpectString sysmode = {{EXP_TYPE_STR, ":SYST:MODE CTRL", ":SYST:MODE?"}, "CTRL"};
-    commands[0] = (SetCommand*)&sysmode;
+    commands[0] = (SetCommandFull*)&sysmode;
 
     //single or dual channel
     static const SetCommandExpectString mode_dual = {{EXP_TYPE_STR, ":CONT:MODE DUAL", ":CONT:MODE?"}, "DUAL"};
@@ -45,63 +54,93 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
 
     //units, setpoints, and rates    
     commands[1] = NULL;
+   
+    
     //ps
     SetCommandExpectString ps_units_cmd;
-    SetCommandExpectString ps_setp_cmd;
-    SetCommandExpectString ps_rate_cmd;
+    SetCommandFull         ps_setp_cmd;
+    SetCommandFull         ps_rate_cmd;
     if(op & CTRL_OP_PS)
     {
-        commands[1] = (SetCommand*)&mode_ps;            
-        commands[command_index++] = (SetCommand*)SetCommandExpectString_construct(&ps_units_cmd, ":CONT:PS:UNITS", ps_units,  ":CONT:PS:UNITS?");  
+        EXP_TYPE ps_setp_exp_type, ps_rate_exp_type;
+        if(strncmp(ps_units, "FT", strlen("FT")+1) == 0)
+        {
+            ps_setp_exp_type = EXP_TYPE_STR;
+            ps_rate_exp_type = EXP_TYPE_STR;        
+        }
+        else if(strncmp(ps_units, "INHG", strlen("INHG")+1) == 0)
+        {
+            ps_setp_exp_type = EXP_TYPE_FP;
+            ps_rate_exp_type = EXP_TYPE_FP;
+        }
+        else
+            return false;
+        commands[1] = (SetCommandFull*)&mode_ps;            
+        commands[command_index++] = (SetCommandFull*)SetCommandExpectString_construct(&ps_units_cmd, ":CONT:PS:UNITS", ps_units,  ":CONT:PS:UNITS?");  
         if(ps)
         {               
-            commands[command_index++] = (SetCommand*)SetCommandExpectString_construct(&ps_setp_cmd, ":CONT:PS:SETP", ps, ":CONT:PS:SETP?");             
+            commands[command_index++] = SetCommandFull_construct(&ps_setp_cmd, ps_setp_exp_type, ":CONT:PS:SETP", ps, ":CONT:PS:SETP?");             
         }
 
         if(ps_rate)
         {           
-            commands[command_index++] = (SetCommand*)SetCommandExpectString_construct(&ps_rate_cmd, ":CONT:PS:RATE", ps_rate, ":CONT:PS:RATE?");           
+            commands[command_index++] = SetCommandFull_construct(&ps_rate_cmd, ps_rate_exp_type, ":CONT:PS:RATE", ps_rate, ":CONT:PS:RATE?");           
         }
  
     }
-    //pt
+    //pt   
     SetCommandExpectString pt_units_cmd;
-    SetCommandExpectString pt_setp_cmd;
-    SetCommandExpectFP     pt_rate_cmd;
+    SetCommandFull     pt_setp_cmd;
+    SetCommandFull     pt_rate_cmd;
     if(op & CTRL_OP_PT)
     {
-        commands[1] = (SetCommand*)&mode_pt;        
-        commands[command_index++] = (SetCommand*)SetCommandExpectString_construct(&pt_units_cmd, ":CONT:PT:UNITS", pt_units, ":CONT:PT:UNITS?");
+        EXP_TYPE pt_setp_exp_type, pt_rate_exp_type;
+        if(strncmp(pt_units, "KTS", strlen("KTS")+1) == 0)
+        {
+            pt_setp_exp_type = EXP_TYPE_STR;
+            pt_rate_exp_type = EXP_TYPE_FP;        
+        }
+        else if(strncmp(pt_units, "INHG", strlen("INHG")+1) == 0)
+        {
+            pt_setp_exp_type = EXP_TYPE_FP;
+            pt_rate_exp_type = EXP_TYPE_FP;
+        }
+        else
+            return false;
+        commands[1] = (SetCommandFull*)&mode_pt;        
+        commands[command_index++] = (SetCommandFull*)SetCommandExpectString_construct(&pt_units_cmd, ":CONT:PT:UNITS", pt_units, ":CONT:PT:UNITS?");
         
         if(pt)
         {            
-            commands[command_index++] = (SetCommand*)SetCommandExpectString_construct(&pt_setp_cmd, ":CONT:PT:SETP", pt, ":CONT:PT:SETP?");               
+            commands[command_index++] = SetCommandFull_construct(&pt_setp_cmd, pt_setp_exp_type, ":CONT:PT:SETP", pt, ":CONT:PT:SETP?");               
         }
 
         if(pt_rate)
         {            
-            commands[command_index++] = (SetCommand*)SetCommandExpectFP_construct(&pt_rate_cmd, ":CONT:PT:RATE", pt_rate, ":CONT:PT:RATE?", strtod(pt_rate, NULL));           
+            commands[command_index++] = SetCommandFull_construct(&pt_rate_cmd, pt_rate_exp_type, ":CONT:PT:RATE", pt_rate, ":CONT:PT:RATE?");           
         }        
     }
     //dual
     if(op == CTRL_OP_DUAL)
-        commands[1] = (SetCommand*)&mode_dual; 
+        commands[1] = (SetCommandFull*)&mode_dual; 
     //unknown channel
     if(commands[1] == NULL)
         return false;
    
     //loop through all of the commands and make sure they turn out as expected
+    const SetCommand *currentCommand;
     for(int i = 0; i < command_index; i++)
     {
-        serial_write(commands[i]->cmd);
-        if(commands[i]->type & EXP_TYPE_STR)
+        currentCommand = (SetCommand*)commands[i];
+        serial_write(currentCommand->cmd);
+        if(currentCommand->type & EXP_TYPE_STR)
         {
-            if(!command_and_check_result_str(commands[i]->cmd_verify, ((SetCommandExpectString*)commands[i])->expected))
+            if(!command_and_check_result_str(currentCommand->cmd_verify, ((SetCommandExpectString*)currentCommand)->expected))
                 return false;
         }
-        else if(commands[i]->type & EXP_TYPE_FP)
+        else if(currentCommand->type & EXP_TYPE_FP)
         {            
-            if(!command_and_check_result_float(commands[i]->cmd_verify, ((SetCommandExpectFP*)commands[i])->expected))
+            if(!command_and_check_result_float(currentCommand->cmd_verify, ((SetCommandExpectFP*)currentCommand)->expected))
                 return false; 
         }        
     }  

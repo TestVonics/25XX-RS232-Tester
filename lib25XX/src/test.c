@@ -7,6 +7,8 @@
 #include "status.h"
 #include "test.h"
 #include "control.h"
+#include "utility.h"
+#include "command.h"
 
 typedef bool (*test_func)(void);
 typedef unsigned int uint;
@@ -35,12 +37,57 @@ bool test_13();
 bool test_14();
 bool test_15();
 
+#define strRemoveVolumes "Remove all volumes/loads"
+#define strConnect60     "Connect 60 cubic inch volume"
+#define strConnect100    "Connect 100 cubic inch volume"
 static TEST Tests[] = {
     {
         "Control Pressure - Aeronautical Units No Volume",
-        "Remove all volumes/loads",
+        strRemoveVolumes,
         NULL,
         &test_1   
+    },
+    {
+        "Control Pressure - Aeronautical Units 60 Cubic Inch Volume",
+        strConnect60,
+        NULL,
+        &test_2
+    },
+    {
+        "Control Pressure - Aeronautical Units 100 Cubic Inch Volume",
+        strConnect100,
+        NULL,
+        &test_3
+    },
+    {
+        "Control Vacuum - Aeronautical Units No Volume",
+        strRemoveVolumes,
+        NULL,
+        &test_4
+    },
+    {
+        "Control Vacuum - Aeronautical Units 60 Cubic Inch Volume",
+        strConnect60,
+        NULL,
+        &test_5
+    },
+    {
+        "Control Vacuum - Aeronautical Units 100 Cubic Inch Volume",
+        strConnect100,
+        NULL,
+        &test_6
+    },
+    {
+        "Control Vacuum - INHG Pressure Units 60 Cubic Inch Volume",
+        strConnect60,
+        NULL,
+        &test_7
+    },
+    {
+        "Control Pressure - INHG Pressure Units 60 Cubic Inch Volume",
+        strConnect60,
+        NULL,
+        &test_8
     },
 };
 
@@ -57,96 +104,97 @@ bool test_0()
     //dump this information to screen for the user
     serial_write("*IDN?");    
     if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;
-
-    //start out vented
-    //serial_write(":SYST:MODE VENT");
-
-    /*
-    serial_write(":SYST:MODE CTRL");
-
-    serial_write(":CONT:PS:MAXSETP?");    
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;
-
-    serial_write(":CONT:PS:MAXRATE?");    
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;
-
-    serial_write(":CONT:PS:SETP?");    
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;
-
-    serial_write(":CONT:PS:RATE?");    
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;
-
-
-    serial_write(":CONT:PT:MAXSETP?");    
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;
-
-    serial_write(":CONT:PT:MAXRATE?");    
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;
-
-    serial_write(":CONT:PT:SETP?");    
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;
-
-    serial_write(":CONT:PT:RATE?");    
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;
-
-    serial_write(":SYST:ERR?");    
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
-        return false;    */
+        return false;    
 
     return true;
 }
 bool test_1()
 {   
-    /* 
-    if(!status_is_idle())
-        return false;*/   
-    
     return control_dual_FK("-2000", "50000", "1000", "800", 120000);
 }
 
 
 bool test_2()
 {
-    return true;
+    return control_dual_FK("-2000", "25000", "1000", "400", 240000);
 }
 
-void test_run_all(wait_func waitfun)
+bool test_3()
 {
-    //if *IDN? doesn't work, exit
+    return control_dual_FK("-2000", "10000", "1000", "200", 360000);
+}
+
+bool test_4()
+{
+    return control_dual_FK("92000", "50000", "0", "800", 120000); 
+}
+
+bool test_5()
+{
+    return control_dual_FK("92000", "25000", "0", "400", 240000);  
+}
+
+bool test_6()
+{
+    return control_dual_FK("92000", "10000", "0", "200", 360000);  
+}
+
+bool test_7()
+{
+    return control_dual_INHG("0.465", "40.000", "0.465", "40.000", 360000);
+}
+
+
+bool test_8()
+{
+    return control_dual_INHG("32.148", "40.000", "73.545", "50.000", 360000);
+}
+
+
+void test_run_all(wait_func waitfun)
+{    
     if(!test_0())
         return;
     
+    struct timespec ts;
     uint passed_cnt = 0;
     for(uint i = 0; i < NUM_TESTS; i++)
-    {       
-        while(!status_is_idle()){
-            //serial_write(":SYST:MODE VENT"); //destroy our equipment before each test because :CONT:GTGR doesn't work 
-            if(!status_is_idle()) 
-            {
-                serial_write(":SYST:MODE CTRL");
-                serial_write(":CONT:MODE DUAL");       
-                serial_write(":CONT:GTGR");
-                char buf[256];
-                if(serial_read_or_timeout(buf, sizeof(buf), 1000) > 0) //catch "ERROR" from ":CONT:GTGR"
-                {
-                    if(strncmp(buf, "ERROR", strlen("ERROR")) == 0)
-                    {
-                        serial_write(":SYST:ERR?");  
-                        serial_read_or_timeout(buf, sizeof(buf), 1000);    
-                    }
-                }
-                sleep(4); 
-            }              
-        };
+    {   
+        //Get it safely to ground and vented
+        serial_write(":SYST:MODE CTRL");
+        command_check_and_handle_ERROR(); 
+        serial_write(":CONT:MODE DUAL"); //Usually reports ERROR despite the system being in CTRL
+        command_check_and_handle_ERROR();        
+        serial_write(":CONT:EXEC");
+        command_check_and_handle_ERROR();      
+        serial_write(":CONT:GTGR");
+        if(command_check_and_handle_ERROR())
+        {
+            serial_write(":SYST:MODE VENT"); //GET IT OUT OF MEASURE MODE
+            command_check_and_handle_ERROR();
+            serial_write(":SYST:MODE CTRL");
+            command_check_and_handle_ERROR();        
+            serial_write(":CONT:EXEC");
+            command_check_and_handle_ERROR();      
+            serial_write(":CONT:GTGR");
+            command_check_and_handle_ERROR();
+        } 
+        
+        //start each test vented and idle
+        while(!status_is_idle())
+        {   
+            /*
+            serial_write(":SYST:MODE CTRL");
+            command_check_and_handle_ERROR();
+            serial_write(":CONT:MODE DUAL"); 
+            command_check_and_handle_ERROR();
+            serial_write(":CONT:EXEC");
+            command_check_and_handle_ERROR();      
+            serial_write(":CONT:GTGR");
+            command_check_and_handle_ERROR();   
+            */            
+            sleep(4);           
+        }
 
         printf("\nTest #%u: %s\n", i+1, Tests[i].test_name);
         printf("SETUP: %s\n", Tests[i].setup);

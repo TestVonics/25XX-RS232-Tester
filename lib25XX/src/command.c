@@ -27,7 +27,6 @@ void SetCommand_implement(SetCommand *instance, const char *cmd, const char *cmd
     }    
 }
 
-//if there isn't data pass an empty string not NULL for cmd_data
 SetCommandExpectString *SetCommandExpectString_construct(SetCommandExpectString *instance, const char *cmd, const char *cmd_data, const char *cmd_verify)
 {
     SetCommand_implement((SetCommand*)instance, cmd, cmd_data, cmd_verify, EXP_TYPE_STR);
@@ -35,12 +34,22 @@ SetCommandExpectString *SetCommandExpectString_construct(SetCommandExpectString 
     return instance;
 }
 
-SetCommandExpectFP *SetCommandExpectFP_construct(SetCommandExpectFP *instance, const char *cmd, const char *cmd_data, const char *cmd_verify, double expected)
+SetCommandExpectFP *SetCommandExpectFP_construct(SetCommandExpectFP *instance, const char *cmd, const char *cmd_data, const char *cmd_verify)
 {
     SetCommand_implement((SetCommand*)instance, cmd, cmd_data, cmd_verify, EXP_TYPE_FP);
-    instance->expected = expected;
+    instance->expected = strtod(cmd_data, NULL);
     return instance;
 }
+
+SetCommandFull *SetCommandFull_construct(SetCommandFull *instance, const EXP_TYPE type, const char *cmd, const char *cmd_data, const char *cmd_verify)
+{
+    if(type & EXP_TYPE_STR)
+        return (SetCommandFull*)SetCommandExpectString_construct((SetCommandExpectString*)instance, cmd, cmd_data, cmd_verify);
+    else if(type & EXP_TYPE_FP)
+        return (SetCommandFull*)SetCommandExpectFP_construct((SetCommandExpectFP*)instance, cmd, cmd_data, cmd_verify);
+    else
+        return NULL;
+} 
 
 void command_get_integer(const char *text_cmd, ICommandResult *command)
 {
@@ -75,8 +84,12 @@ bool command_and_check_result_float(const char *msg, double expected_result)
     if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
         return false;
 
-    if(expected_result != strtod(buf, NULL))
+    double recvD = strtod(buf, NULL);
+    if(expected_result != recvD)
+    {
+        printf("expected_result was %f, but %f was recveived\n", expected_result, recvD);
         return false;
+    }
 
     return true;
 }
@@ -124,4 +137,21 @@ inline STBCommand command_STB()
 
     return  stbc;
   
+}
+
+
+bool command_check_and_handle_ERROR()
+{
+    char buf[256];
+    if(serial_read_or_timeout(buf, sizeof(buf), 500) > 0) 
+    {
+        if(strncmp(buf, "ERROR", strlen("ERROR")) == 0)
+        {
+            serial_write(":SYST:ERR?");  
+            serial_read_or_timeout(buf, sizeof(buf), 500);  
+            return true;  
+        }
+    }
+
+    return false;
 }

@@ -101,7 +101,15 @@ typedef struct SetCommandExpectFP {
     IMPLEMENT_SetCommand;
     double     expected;
 } SetCommandExpectFP;
-SetCommandExpectFP *SetCommandExpectFP_construct(SetCommandExpectFP *instance, const char *cmd, const char *cmd_data, const char *cmd_verify, double expected);
+SetCommandExpectFP *SetCommandExpectFP_construct(SetCommandExpectFP *instance, const char *cmd, const char *cmd_data, const char *cmd_verify);
+
+//Add your SetCommands here, so enough storage is created to store your SetCommand
+//This contains an implementation of a SetCommand
+typedef union SetCommandFull {
+    SetCommandExpectString sces;
+    SetCommandExpectFP scefp;
+} SetCommandFull;
+SetCommandFull *SetCommandFull_construct(SetCommandFull *instance, const EXP_TYPE type, const char *cmd, const char *cmd_data, const char *cmd_verify);
 
 //Declare an interface for command results
 #define ICommandResult_MEMBERS \
@@ -157,4 +165,5 @@ STBCommand command_STB();
 bool command_and_check_result_str(const char *msg, const char *expected_result);
 bool command_and_check_result_float(const char *msg, double expected_result);
 
+bool command_check_and_handle_ERROR();
 
