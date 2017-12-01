@@ -167,3 +167,4 @@ bool command_and_check_result_float(const char *msg, double expected_result);
 
 bool command_check_and_handle_ERROR();
 
+bool command_GTG_eventually();

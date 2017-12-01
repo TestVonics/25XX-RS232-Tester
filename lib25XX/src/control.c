@@ -97,7 +97,9 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
         EXP_TYPE pt_setp_exp_type, pt_rate_exp_type;
         if(strncmp(pt_units, "KTS", strlen("KTS")+1) == 0)
         {
-            pt_setp_exp_type = EXP_TYPE_STR;
+            //pt_setp_exp_type = EXP_TYPE_STR;
+            //pt_rate_exp_type = EXP_TYPE_FP;
+            pt_setp_exp_type = EXP_TYPE_FP;
             pt_rate_exp_type = EXP_TYPE_FP;        
         }
         else if(strncmp(pt_units, "INHG", strlen("INHG")+1) == 0)
@@ -132,7 +134,8 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
     for(int i = 0; i < command_index; i++)
     {
         currentCommand = (SetCommand*)commands[i];
-        serial_write(currentCommand->cmd);
+        if(!serial_do(currentCommand->cmd, NULL, 0, NULL))
+            return false;
         if(currentCommand->type & EXP_TYPE_STR)
         {
             if(!command_and_check_result_str(currentCommand->cmd_verify, ((SetCommandExpectString*)currentCommand)->expected))
@@ -174,7 +177,7 @@ bool control(CTRL_OP op, uint64_t exp_time)
     
     
     //EXECUTE
-    serial_write(":CONT:EXEC");
+    serial_do(":CONT:EXEC", NULL, 0, NULL);
     sleep(1);
     StatOperEven soe;
     

@@ -2,9 +2,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <unistd.h>
+#include <stdatomic.h>
 
 #include "command.h"
 #include "serial.h"
+#include "status.h"
+
 
 static_assert(sizeof(QUE) == sizeof(int), "que isn't the same size as int");
 static_assert(sizeof(OPR) == sizeof(int), "opr isn't the same size as int");
@@ -13,6 +17,7 @@ static_assert(sizeof(ESB) == sizeof(int), "esb isn't the same size as int");
 
 static inline void command_get_integer(const char *text_cmd, ICommandResult *command);
 static inline void SetCommand_implement(SetCommand *instance, const char *cmd, const char *cmd_data, const char *cmd_verify, EXP_TYPE type);
+static inline bool command_force_gtg();
 
 void SetCommand_implement(SetCommand *instance, const char *cmd, const char *cmd_data, const char *cmd_verify, EXP_TYPE type)
 {
@@ -63,8 +68,7 @@ bool command_and_check_result_str(const char *msg, const char *expected_result)
 {
     int n;
     char buf[256];
-    serial_write(msg);
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+    if(!serial_do(msg, buf, sizeof(buf), &n))
         return false;
     
     if((n-1) != (int)strlen(expected_result))
@@ -80,8 +84,7 @@ bool command_and_check_result_float(const char *msg, double expected_result)
 {
     int n;
     char buf[256];
-    serial_write(msg);
-    if((n = serial_read_or_timeout(buf, sizeof(buf), 5000)) <= 0)    
+    if(!serial_do(msg, buf, sizeof(buf), &n))
         return false;
 
     double recvD = strtod(buf, NULL);
@@ -94,6 +97,7 @@ bool command_and_check_result_float(const char *msg, double expected_result)
     return true;
 }
 
+/*
 bool command_check_sys_err()
 {
     serial_write(":SYST:ERR?"); 
@@ -103,6 +107,7 @@ bool command_check_sys_err()
         return false; 
     return true;
 }
+*/
 
 //Returns false if an eror occurs
 //otherwise 
@@ -139,7 +144,7 @@ inline STBCommand command_STB()
   
 }
 
-
+/*
 bool command_check_and_handle_ERROR()
 {
     char buf[256];
@@ -155,3 +160,86 @@ bool command_check_and_handle_ERROR()
 
     return false;
 }
+*/
+
+bool command_force_gtg()
+{
+    /*
+    serial_write(":SYST:MODE VENT"); //GET IT OUT OF MEASURE MODE
+    command_check_and_handle_ERROR();
+    serial_write(":SYST:MODE CTRL");
+    command_check_and_handle_ERROR();        
+    serial_write(":CONT:EXEC");
+    command_check_and_handle_ERROR();      
+    serial_write(":CONT:GTGR");
+    return ! command_check_and_handle_ERROR();
+    */
+    serial_do(":SYST:MODE VENT", NULL, 0, NULL);
+    serial_do(":SYST:MODE CTRL", NULL, 0, NULL);
+    serial_do(":CONT:EXEC", NULL, 0, NULL);
+    return serial_do(":CONT:GTGR", NULL, 0, NULL);
+}
+
+bool command_GTG_eventually()
+{   
+    bool send = true;
+
+    STATUS st;
+    //if we are not idle, send GTG. If we have an error send it again
+    //while((st = status_check_event_registers()) != ST_IDLE_VENT)
+    do
+    {
+        if(st == ST_ERR)
+            send = true;
+
+        if(send)
+        {
+            send = !send;
+            //Get it safely to ground and vented  
+            if(!serial_do(":CONT:GTGR", NULL, 0, NULL))
+            {
+                //This is BAD we open up the vent valve, to get it out of measure mode so we can control to ground
+                command_force_gtg();
+            }
+        }
+        sleep(4);        
+    } while((st = status_check_event_registers()) != ST_IDLE_VENT);
+    
+    return true;
+}
+
+/*
+static atomic_flag command_global_lock = ATOMIC_FLAG_INIT;
+static char buf[256];
+void *command_main_loop(void *ptr)
+{
+    for(;;)
+    {
+        bool reading_error;
+        while(atomic_flag_test_and_set_explicit(&command_global_lock, memory_order_acquire));
+        
+        int n;
+        
+        if((n = serial_read_or_timeout(buf, sizeof(buf), 500)) > 0)
+        {
+            if(reading_error)
+            {
+                reading_error = false;
+            }
+            else if(strncmp(buf, "ERROR", strlen("ERROR")) == 0)
+            {
+                serial_write(":SYST:ERR?");
+                reading_error = true;                  
+            }            
+            else
+                reading_error = false;
+        }
+        else
+            reading_error = false;
+
+        if(!reading_error)        
+            atomic_flag_clear_explicit(&command_global_lock, memory_order_release);
+    }
+    return NULL;
+}
+*/

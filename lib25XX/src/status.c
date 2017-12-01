@@ -13,7 +13,9 @@ bool status_is_idle()
     if(status_check_event_registers() == ST_IDLE_VENT)
     {
         //if the registers are idle it should be safe to put in vent.
-        serial_write(":SYST:MODE VENT");
+        //serial_write(":SYST:MODE VENT");
+        if(!serial_do(":SYST:MODE VENT", NULL, 0, NULL))
+            return false;
         if(command_and_check_result_str(":SYST:MODE?", "VENT"))
              return true;      
     }
@@ -37,8 +39,9 @@ STATUS status_check_event_registers()
     if(!stbc.succeed)
         return ST_ERR;
 
-    //if anything is set we are not idle
-    if(stbc.stb & STB_ALL)
+    //if STB isn't 0 we aren't idle in most cases
+    //if(stbc.stb & STB_ALL)
+    if(stbc.stb != 0)
         status = ST_NOT_IDLE;
 
     if(stbc.stb & STB_QUE)
@@ -91,11 +94,13 @@ STATUS status_check_event_registers()
 
             //if only OPR is set in STB and OPR only reports that it hit ground
             //we also qualify as idle
-            if((stbc.stb == STB_OPR) && (soe.opr == OPR_GTG))
+            if(soe.opr == OPR_GTG)
+            {               
                 status = ST_IDLE_VENT;
+            }
         }              
     }
-
+    //printf("Exiting %s, status is %d\n", __func__, status);
     return status;    
 }       
 
