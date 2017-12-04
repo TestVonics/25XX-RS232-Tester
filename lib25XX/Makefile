@@ -3,8 +3,8 @@ ifndef ARCH
   ARCH = x86_64
 endif
 
-#Same for both ARCH
-CFLAGS = -Wall -Wextra -Wformat  -std=gnu11
+#Same for both ARCH. LOG_SERIAL writes a log file of serial messages
+CFLAGS = -Wall -Wextra -Wformat  -std=gnu11 -DLOG_SERIAL
 SRCDIR := src
 
 #ARCH specific
@@ -25,7 +25,7 @@ TARGET := $(LIBDIR)/lib25XX.a
 
 all: $(TARGET)
 
-debug: CFLAGS += -Wno-unused-parameter -DDEBUG -g
+debug: CFLAGS += -Wno-unused-parameter -DDEBUG -DDEBUG_SERIAL -g
 debug: $(TARGET)
 
 #build static library

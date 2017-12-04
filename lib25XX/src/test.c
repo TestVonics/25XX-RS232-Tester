@@ -124,25 +124,18 @@ bool test_3()
 }
 
 bool test_4()
-{
-    char buf[256];
-    serial_do(":SYST:MODE CTRL", NULL, 0, NULL);
-    serial_do(":CONT:MODE DUAL", NULL, 0, NULL);
-    serial_do(":CONT:PS:UNITS INHG", NULL, 0, NULL);
-    serial_do(":CONT:PT:UNITS INHG", NULL, 0, NULL);
-    serial_do(":CONT:PS:MAXRATE?", buf, sizeof(buf), NULL);
-    serial_do(":CONT:PT:MAXRATE?", buf, sizeof(buf), NULL);
-    return control_dual_FK("92000", "50000", "0", "800", 120000); 
+{  
+    return control_dual_FK("92000", "50000", "0", "800", 150000); 
 }
 
 bool test_5()
 {
-    return control_dual_FK("92000", "25000", "0", "400", 240000);  
+    return control_dual_FK("92000", "25000", "0", "400", 300000);  
 }
 
 bool test_6()
 {
-    return control_dual_FK("92000", "10000", "0", "200", 360000);  
+    return control_dual_FK("92000", "10000", "0", "200", 600000);  
 }
 
 bool test_7()

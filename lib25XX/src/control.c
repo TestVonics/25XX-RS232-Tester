@@ -43,25 +43,36 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
     const SetCommandFull *commands[8];
     int command_index = 2;
 
-    //control mode
+    //system mode to control mode
     static const SetCommandExpectString sysmode = {{EXP_TYPE_STR, ":SYST:MODE CTRL", ":SYST:MODE?"}, "CTRL"};
-    commands[0] = (SetCommandFull*)&sysmode;
+    commands[0] = (SetCommandFull*)&sysmode;     
 
-    //single or dual channel
+    //control channel
     static const SetCommandExpectString mode_dual = {{EXP_TYPE_STR, ":CONT:MODE DUAL", ":CONT:MODE?"}, "DUAL"};
     static const SetCommandExpectString mode_ps = {{EXP_TYPE_STR, ":CONT:MODE PS", ":CONT:MODE?"}, "PS"};
     static const SetCommandExpectString mode_pt = {{EXP_TYPE_STR, ":CONT:MODE PT", ":CONT:MODE?"}, "PT"};
+    commands[1] = NULL;    
 
-    //units, setpoints, and rates    
-    commands[1] = NULL;
-   
-    
-    //ps
+    //Units commands, we must do this before trying to set setpoints and rates
     SetCommandExpectString ps_units_cmd;
-    SetCommandFull         ps_setp_cmd;
-    SetCommandFull         ps_rate_cmd;
     if(op & CTRL_OP_PS)
+    {        
+        commands[command_index++] = (SetCommandFull*)SetCommandExpectString_construct(&ps_units_cmd, ":CONT:PS:UNITS", ps_units,  ":CONT:PS:UNITS?"); 
+    }
+
+    SetCommandExpectString pt_units_cmd;
+    if(op & CTRL_OP_PT)
     {
+        commands[command_index++] = (SetCommandFull*)SetCommandExpectString_construct(&pt_units_cmd, ":CONT:PT:UNITS", pt_units, ":CONT:PT:UNITS?");
+    }
+
+    //Mode, setpoints, and rates    
+    //ps    
+    SetCommandFull         ps_setp_cmd;
+    SetCommandFull         ps_rate_cmd; 
+    if(op & CTRL_OP_PS)
+    {        
+        commands[1] = (SetCommandFull*)&mode_ps;   
         EXP_TYPE ps_setp_exp_type, ps_rate_exp_type;
         if(strncmp(ps_units, "FT", strlen("FT")+1) == 0)
         {
@@ -74,9 +85,7 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
             ps_rate_exp_type = EXP_TYPE_FP;
         }
         else
-            return false;
-        commands[1] = (SetCommandFull*)&mode_ps;            
-        commands[command_index++] = (SetCommandFull*)SetCommandExpectString_construct(&ps_units_cmd, ":CONT:PS:UNITS", ps_units,  ":CONT:PS:UNITS?");  
+            return false;      
         if(ps)
         {               
             commands[command_index++] = SetCommandFull_construct(&ps_setp_cmd, ps_setp_exp_type, ":CONT:PS:SETP", ps, ":CONT:PS:SETP?");             
@@ -88,12 +97,12 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
         }
  
     }
-    //pt   
-    SetCommandExpectString pt_units_cmd;
+    //pt       
     SetCommandFull     pt_setp_cmd;
     SetCommandFull     pt_rate_cmd;
     if(op & CTRL_OP_PT)
     {
+        commands[1] = (SetCommandFull*)&mode_pt;   
         EXP_TYPE pt_setp_exp_type, pt_rate_exp_type;
         if(strncmp(pt_units, "KTS", strlen("KTS")+1) == 0)
         {
@@ -108,10 +117,7 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
             pt_rate_exp_type = EXP_TYPE_FP;
         }
         else
-            return false;
-        commands[1] = (SetCommandFull*)&mode_pt;        
-        commands[command_index++] = (SetCommandFull*)SetCommandExpectString_construct(&pt_units_cmd, ":CONT:PT:UNITS", pt_units, ":CONT:PT:UNITS?");
-        
+            return false;     
         if(pt)
         {            
             commands[command_index++] = SetCommandFull_construct(&pt_setp_cmd, pt_setp_exp_type, ":CONT:PT:SETP", pt, ":CONT:PT:SETP?");               
@@ -122,12 +128,12 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
             commands[command_index++] = SetCommandFull_construct(&pt_rate_cmd, pt_rate_exp_type, ":CONT:PT:RATE", pt_rate, ":CONT:PT:RATE?");           
         }        
     }
-    //dual
+
+    //dual channel
     if(op == CTRL_OP_DUAL)
         commands[1] = (SetCommandFull*)&mode_dual; 
-    //unknown channel
-    if(commands[1] == NULL)
-        return false;
+    else if(commands[1] == NULL) //unknown channel
+        return false;    
    
     //loop through all of the commands and make sure they turn out as expected
     const SetCommand *currentCommand;
@@ -139,12 +145,21 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
         if(currentCommand->type & EXP_TYPE_STR)
         {
             if(!command_and_check_result_str(currentCommand->cmd_verify, ((SetCommandExpectString*)currentCommand)->expected))
-                return false;
+            {
+                if(!serial_do(currentCommand->cmd, NULL, 0, NULL))
+                    return false;
+                if(!command_and_check_result_str(currentCommand->cmd_verify, ((SetCommandExpectString*)currentCommand)->expected))
+                    return false;
+            }
         }
         else if(currentCommand->type & EXP_TYPE_FP)
         {            
             if(!command_and_check_result_float(currentCommand->cmd_verify, ((SetCommandExpectFP*)currentCommand)->expected))
-                return false; 
+            {   
+                if(!command_and_check_result_float(currentCommand->cmd_verify, ((SetCommandExpectFP*)currentCommand)->expected))
+                    return false; 
+            }
+            
         }        
     }  
     
@@ -177,15 +192,17 @@ bool control(CTRL_OP op, uint64_t exp_time)
     
     
     //EXECUTE
-    serial_do(":CONT:EXEC", NULL, 0, NULL);
-    sleep(1);
+    serial_do(":CONT:EXEC", NULL, 0, NULL);   
     StatOperEven soe;
-    
-    //While we are not stable, check every 5 seconds
     uint64_t start = time_in_ms();
+
+    //While we are not stable, check every 5 seconds    
     while(!((soe = command_StatOperEven()).opr & success_mask))
     { 
-        if(!(soe.opr & check_states[0]))
+        /*
+        //This strategy doesn't work because sometimes it doesn't report
+        //one of the channels
+        if(!(soe.opr & check_states[0]) )
         {
             printf("Error: PS is in INVALID STATE\n");
             status_check_event_registers();
@@ -200,7 +217,10 @@ bool control(CTRL_OP op, uint64_t exp_time)
                 status_check_event_registers();
                 return false;
             }
-        }   
+        }*/
+
+        if(status_check_event_registers() == ST_ERR)
+            return false;   
 
         if((time_in_ms()- start) > exp_time)
         {

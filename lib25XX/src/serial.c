@@ -18,6 +18,36 @@ typedef uint8_t byte;
 typedef uint64_t uint64;
 typedef uint32_t uint32;
 
+#ifdef DEBUG_SERIAL
+    #define _debug_serial(fmt, ...) DEBUG_PRINT(fmt, ##__VA_ARGS__)
+    #define debug_serial(fmt, ...) _debug_serial(fmt, ##__VA_ARGS__)   
+    #ifndef LOG_SERIAL 
+        #define LOG_SERIAL
+    #endif
+#else
+    #define debug_serial(fmt, ...)
+#endif
+
+#ifdef LOG_SERIAL
+    static int Serial_Com_Log;
+    
+    #ifdef DEBUG_SERIAL
+        #undef debug_serial
+        #define debug_serial(fmt, ...) _debug_serial(fmt, ##__VA_ARGS__); \
+        char format[512]; \
+        snprintf(format, 512, "%-22.22s| %s", __func__, fmt); \
+        log_serial(format, ##__VA_ARGS__)
+    #endif 
+
+    #define log_serial(fmt, ...) log_fd(Serial_Com_Log, fmt, ##__VA_ARGS__)
+#else
+    #define log_serial(fmt, ...)
+#endif
+
+#define ERROR_SERIAL(fmt, ...) ERROR_PRINT(fmt, ##__VA_ARGS__); \
+log_serial(fmt, ##__VA_ARGS__)
+
+
 static int Serial;
 const char* const RS232 = "/dev/ttyUSB0";
 
@@ -28,16 +58,21 @@ static inline int serial_read_or_timeout(char *buf, size_t bufsize, uint64_t tim
 
 bool serial_init()
 {
+    #ifdef LOG_SERIAL
+        Serial_Com_Log = open("com.log", O_WRONLY | O_APPEND);
+        if(Serial_Com_Log == -1)
+            return false;        
+    #endif 
     Serial = open(RS232, O_RDWR | O_NOCTTY | O_NDELAY);
 
     if (Serial == -1)
     {
-        printf("serial_init Unable to open serial device\n");
+        ERROR_SERIAL("Unable to open serial device");
         return false;
     }
     else
     {
-        printf("serial_init Serial Opened\n");
+        debug_serial("serial opened");
     }
 
     //setup after opening
@@ -69,6 +104,9 @@ bool serial_init()
     
     //set it finally
     tcsetattr(Serial, TCSANOW, &options);    
+
+
+
     return true;
 }
 
@@ -78,7 +116,7 @@ int serial_try_read(char *buf, size_t bufsize)
     if((n = read(Serial, buf, bufsize)) > 0)
     {
         buf[n-1] = '\0';
-        printf("RECV: (%d): %s\n", n, buf);
+        log_serial("RECV (%d): %s", n, buf);
     }
     return n;
 }
@@ -116,7 +154,7 @@ bool serial_write(const char *str)
     
     //print what we just sent
     buf[message_len-1] = '\0';
-    printf("\nSEND (%lu): %s\n", message_len, buf);
+    log_serial("SEND (%lu): %s", message_len, buf);
     return bRet;    
 }
 
@@ -165,4 +203,8 @@ bool serial_do(const char *cmd, void *result, size_t result_size, int *num_resul
 void serial_close()
 {
     close(Serial);
+
+    #ifdef LOG_SERIAL
+        close(Serial_Com_Log);        
+    #endif 
 }

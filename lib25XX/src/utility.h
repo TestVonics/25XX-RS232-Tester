@@ -11,3 +11,17 @@ FORCEINLINE void SLEEP_MS(struct timespec *ts, unsigned long ms)
     
     nanosleep(ts, NULL);
 }
+
+void log_message(const char* const function_src, const char* const _format, ...);
+int log_fd(int fd, const char* const _format, ...);
+
+#ifdef DEBUG
+    #define DEBUG_PRINT(fmt, ...)    log_message(__func__, fmt, ##__VA_ARGS__)
+#else
+    #define DEBUG_PRINT(fmt, ...)
+#endif
+
+#define ERROR_PRINT(fmt, ...) DEBUG_PRINT(fmt, ##__VA_ARGS__); \
+fprintf(stderr, fmt, ##__VA_ARGS__)
+
+
