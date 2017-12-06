@@ -10,6 +10,7 @@
 #include "serial.h"
 #include "utility.h"
 #include "status.h"
+#include "test.h"
 
 typedef enum {
     CTRL_OP_PS        = 1 << 0,
@@ -21,6 +22,41 @@ typedef enum {
 
 static bool control(CTRL_OP op, uint64_t exp_time);
 static bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate);
+bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time);
+bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time);
+
+bool control_run_test(const ControlTest *test)
+{
+    const char *ps_units;
+    const char *ps_rate_units_part;
+    const char *pt_units;
+    const char *pt_rate_units_part;
+    if(test->units & CTRL_UNITS_FK)
+    {
+        ps_units = "FT";
+        pt_units = "KTS";
+        ps_rate_units_part = "F";
+        pt_rate_units_part = "K";
+    }
+    else if(test->units & CTRL_UNITS_INHG)
+    {
+        ps_units = "INHG";
+        ps_rate_units_part = ps_units;
+        pt_units = "INHG";
+        pt_rate_units_part = pt_units;
+    }
+    else
+    {
+        ERROR_PRINT("Invalid units, passed in units is %d", (int)test->units); 
+    }
+
+    OUTPUT_PRINT("Setting up ADTS Control:\n PS TARGET: %s %s PS RATE: %s %sPM PT TARGET: %s %s PT RATE %s %sPM", test->ps, ps_units, test->ps_rate, ps_rate_units_part, test->pt, pt_units, test->pt_rate, pt_rate_units_part);   
+    if(!control_setup(CTRL_OP_DUAL, ps_units, pt_units, test->ps, test->ps_rate, test->pt, test->pt_rate))
+        return false;
+    
+    OUTPUT_PRINT("ADTS Control setup complete, System is NOW Controlling");    
+    return control(CTRL_OP_DUAL, test->duration);
+}
 
 bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time)
 {
@@ -146,18 +182,23 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
         {
             if(!command_and_check_result_str(currentCommand->cmd_verify, ((SetCommandExpectString*)currentCommand)->expected))
             {
+                /*
                 if(!serial_do(currentCommand->cmd, NULL, 0, NULL))
                     return false;
                 if(!command_and_check_result_str(currentCommand->cmd_verify, ((SetCommandExpectString*)currentCommand)->expected))
                     return false;
+                */
             }
         }
         else if(currentCommand->type & EXP_TYPE_FP)
         {            
             if(!command_and_check_result_float(currentCommand->cmd_verify, ((SetCommandExpectFP*)currentCommand)->expected))
-            {   
+            {   /*
+                if(!serial_do(currentCommand->cmd, NULL, 0, NULL))
+                    return false;
                 if(!command_and_check_result_float(currentCommand->cmd_verify, ((SetCommandExpectFP*)currentCommand)->expected))
-                    return false; 
+                    return false;
+                */ 
             }
             
         }        
@@ -224,7 +265,7 @@ bool control(CTRL_OP op, uint64_t exp_time)
 
         if((time_in_ms()- start) > exp_time)
         {
-            printf("Timeout, control not performed in %llu\n", (long long unsigned)exp_time);
+            OUTPUT_PRINT("Timeout, control not performed in %llu\n", (long long unsigned)exp_time);
             return false;
         }    
                

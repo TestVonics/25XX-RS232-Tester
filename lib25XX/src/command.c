@@ -8,7 +8,7 @@
 #include "command.h"
 #include "serial.h"
 #include "status.h"
-
+#include "utility.h"
 
 static_assert(sizeof(QUE) == sizeof(int), "que isn't the same size as int");
 static_assert(sizeof(OPR) == sizeof(int), "opr isn't the same size as int");
@@ -90,7 +90,7 @@ bool command_and_check_result_float(const char *msg, double expected_result)
     double recvD = strtod(buf, NULL);
     if(expected_result != recvD)
     {
-        printf("expected_result was %f, but %f was recveived\n", expected_result, recvD);
+        ERROR_PRINT("Command expected_result was %f, but %f was recieved\n", expected_result, recvD);
         return false;
     }
 
@@ -164,19 +164,7 @@ bool command_check_and_handle_ERROR()
 
 bool command_force_gtg()
 {
-    /*
-    serial_write(":SYST:MODE VENT"); //GET IT OUT OF MEASURE MODE
-    command_check_and_handle_ERROR();
-    serial_write(":SYST:MODE CTRL");
-    command_check_and_handle_ERROR();        
-    serial_write(":CONT:EXEC");
-    command_check_and_handle_ERROR();      
-    serial_write(":CONT:GTGR");
-    return ! command_check_and_handle_ERROR();
-    */
-    serial_do(":SYST:MODE VENT", NULL, 0, NULL);
-    serial_do(":SYST:MODE CTRL", NULL, 0, NULL);
-    serial_do(":CONT:EXEC", NULL, 0, NULL);
+    serial_do(":CONT:EXEC", NULL, 0, NULL);    
     return serial_do(":CONT:GTGR", NULL, 0, NULL);
 }
 
@@ -197,8 +185,7 @@ bool command_GTG_eventually()
             send = !send;
             //Get it safely to ground and vented  
             if(!serial_do(":CONT:GTGR", NULL, 0, NULL))
-            {
-                //This is BAD we open up the vent valve, to get it out of measure mode so we can control to ground
+            {                
                 command_force_gtg();
             }
         }

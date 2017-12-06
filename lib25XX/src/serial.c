@@ -18,33 +18,28 @@ typedef uint8_t byte;
 typedef uint64_t uint64;
 typedef uint32_t uint32;
 
+/* If DEBUG_SERIAL enabled, enable _debug_serial and enable LOG_SERIAL*/
 #ifdef DEBUG_SERIAL
     #define _debug_serial(fmt, ...) DEBUG_PRINT(fmt, ##__VA_ARGS__)
-    #define debug_serial(fmt, ...) _debug_serial(fmt, ##__VA_ARGS__)   
-    #ifndef LOG_SERIAL 
+    #ifndef LOG_SERIAL
         #define LOG_SERIAL
     #endif
-#else
-    #define debug_serial(fmt, ...)
 #endif
 
+/*If LOG_SERIAL is enabled, enable log_serial */
 #ifdef LOG_SERIAL
-    static int Serial_Com_Log;
-    
-    #ifdef DEBUG_SERIAL
-        #undef debug_serial
-        #define debug_serial(fmt, ...) _debug_serial(fmt, ##__VA_ARGS__); \
-        char format[512]; \
-        snprintf(format, 512, "%-22.22s| %s", __func__, fmt); \
-        log_serial(format, ##__VA_ARGS__)
-    #endif 
-
-    #define log_serial(fmt, ...) log_fd(Serial_Com_Log, fmt, ##__VA_ARGS__)
+    static int Serial_Com_Log; 
+    #define log_serial(fmt, ...) log_fd_line(Serial_Com_Log, fmt, ##__VA_ARGS__)
 #else
-    #define log_serial(fmt, ...)
+    #define log_serial(fmt, ...)    
 #endif
 
-#define ERROR_SERIAL(fmt, ...) ERROR_PRINT(fmt, ##__VA_ARGS__); \
+/* Set debug_serial to call the functions of enabled macros*/
+#define debug_serial(fmt, ...) _debug_serial(fmt, ##__VA_ARGS__); \
+    log_serial(fmt, ##__VA_ARGS__)
+
+/*Print error statements to screen, will print to log if logging is enabled */
+#define error_serial(fmt, ...) ERROR_PRINT(fmt, ##__VA_ARGS__); \
 log_serial(fmt, ##__VA_ARGS__)
 
 
@@ -67,7 +62,7 @@ bool serial_init()
 
     if (Serial == -1)
     {
-        ERROR_SERIAL("Unable to open serial device");
+        error_serial("Unable to open serial device");
         return false;
     }
     else

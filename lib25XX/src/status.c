@@ -7,6 +7,7 @@
 #include "status.h"
 #include "serial.h"
 #include "command.h"
+#include "utility.h"
 
 bool status_is_idle()
 {    
@@ -77,7 +78,7 @@ STATUS status_check_event_registers()
         if(!soe.succeed) 
         {
             status = ST_ERR;
-            printf("OPR READ ERROR\n");            
+            ERROR_PRINT("OPR READ ERROR\n");            
         } 
         else if(soe.opr & OPR_ALL)
         {

@@ -6,6 +6,10 @@
 
 #include "utility.h"
 
+int vbuild_debug(char *dest, size_t dest_len ,const char * func_src, const char *_format, va_list arg);
+int vlog_fd(const int fd, const char * const format, va_list arg);
+
+
 uint64_t time_in_ms()
 {
     uint64_t ms; // Milliseconds
@@ -17,45 +21,57 @@ uint64_t time_in_ms()
     return ms;
 }
 
-void log_message(const char* const function_src, const char* const _format, ...)
+int vbuild_debug(char *dest, size_t dest_len ,const char * function_src, const char *_format, va_list arg)
 {
-    //Add the start to the full format string   
-    char format[512];
-    snprintf(format, 512, "%-22.22s| %s\n", function_src, _format); //first 22 characters of function name   
-   
-    //Now expand the format
-    va_list arg;    
-    va_start (arg, _format);
-    char message[1024];
-    vsnprintf(message, 1024, format, arg);     
-    va_end (arg);     
-   
-    //Now print the message
-    fprintf(stderr, message);        
-}
-
-/*
-int log_func_fd(int fd, const char *const function_src, const char* const _format, ...)
-{
-    char format[512];
-    snprintf(format, 512, "%-22.22s| %s", function_src, _format); //first 22 characters of function name   
-    return log_fd(fd, format, 
-}
-*/
-
-int log_fd(int fd, const char* const _format, ...)
-{
-    //Add the start to the full format string   
     char format[768];
-    snprintf(format, sizeof(format), "%s\n", _format);
-   
-    //Now expand the format
-    va_list arg;    
-    va_start (arg, _format);
+    if(snprintf(format, sizeof(format), "%-22.22s| %s\n", function_src, _format) < 0)
+        return -1;
+
+    return vsnprintf(dest, dest_len, format, arg);
+}
+
+int vlog_fd(const int fd, const char * const format, va_list arg)
+{
     char message[1024];
     int msglen = vsnprintf(message, 1024, format, arg);     
-    va_end (arg);     
-   
-    //Now print the message
-    return write(fd, message, msglen);           
+    return write(fd, message, msglen);
 }
+
+
+int log_fd_debug(const int fd, const char * const function_src, const char* const _format, ...)
+{
+    char message[1024];
+    va_list arg;    
+    va_start (arg, _format); 
+    int len = vbuild_debug(message, sizeof(message), function_src, _format, arg);      
+    va_end (arg);
+    return write(fd, message, len);
+}
+
+int log_fd_line(int fd, const char *const _format, ...)
+{
+    //Add \n to format string
+    char format[768]; 
+    uint i;
+    for(i = 0; i < sizeof(format) - 1; i++)
+    {
+        if(_format[i] == '\0')
+        {
+           format[i] = '\n';
+           format[i+1] = '\0'; 
+           break;
+        }
+        format[i] = _format[i];
+    }
+    if(i >= (sizeof(format) - 1))
+    {
+        return -1;
+    }
+
+    va_list arg;    
+    va_start (arg, _format);
+    int ret = vlog_fd(fd, format, arg);
+    va_end (arg);
+    return ret;
+}
+

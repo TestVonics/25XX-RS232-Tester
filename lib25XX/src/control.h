@@ -1,7 +1,10 @@
 #pragma once
 //Controlling
 #include <stdint.h>
+typedef enum {
+    CTRL_UNITS_FK   = 1 << 0,
+    CTRL_UNITS_INHG = 1 << 1,
+} CTRL_UNITS;
 
-bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time);
-
-bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time);
+struct ControlTest;
+bool control_run_test(const struct ControlTest *test);
