@@ -126,16 +126,25 @@ static inline TEST *testset_get_test(const TEST_SET *test_set, const uint index)
 bool system_info()
 {
     //clear any errors to start with 
-    //if(!serial_do("*CLS", NULL, 0, NULL))
-        //return false;
+    if(!serial_do("*CLS", NULL, 0, NULL))
+        return false;
 
-    //dump this information to screen for the user 
+    //dump this information to screen for the user
+    //and generate our log filename 
     char buf[256];   
     if(!serial_do("*IDN?", buf, sizeof(buf), NULL))
-         return false;      
+         return false; 
+
+    char filename[256];
+    if(!build_filename_from_IDN(filename, buf))
+        return false;
+
+    DEBUG_PRINT(filename);
+    if(!log_init(filename))
+         return false;     
 
     OUTPUT_PRINT(buf);
-
+       
     return true;
 }
 
@@ -160,7 +169,11 @@ void test_run_all(wait_func waitfun)
         {           
             //start each test vented and idle
             OUTPUT_PRINT("Test setup - Controlling to ground");
-            command_GTG_eventually();        
+            command_GTG_eventually();    
+
+            //get rid of leftovers, once we are safely at ground
+            if(!serial_do("*CLS", NULL, 0, NULL))
+                return;    
 
             TEST *test;
             assert((test = testset_get_test(TestSets[i], j)) != NULL);                

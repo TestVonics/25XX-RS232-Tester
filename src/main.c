@@ -11,7 +11,7 @@
 #include <math.h>
 #include <stdbool.h>
 
-#include "serial.h"
+#include "utility.h"
 #include "test.h"
 
 typedef uint8_t byte;
@@ -30,13 +30,13 @@ int main(int argc, char **argv)
     printf("25XX Tester\n");
     set_terminal_mode();
     
-    if(!serial_init())
+    if(!lib_init())
     {
         exit(1);
     }    
     test_run_all(&wait_for_user);
 
-    serial_close();
+    lib_close();
     
     return 0;
 }

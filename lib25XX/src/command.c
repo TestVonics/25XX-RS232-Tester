@@ -9,6 +9,7 @@
 #include "serial.h"
 #include "status.h"
 #include "utility.h"
+#include "control.h"
 
 static_assert(sizeof(QUE) == sizeof(int), "que isn't the same size as int");
 static_assert(sizeof(OPR) == sizeof(int), "opr isn't the same size as int");
@@ -17,7 +18,7 @@ static_assert(sizeof(ESB) == sizeof(int), "esb isn't the same size as int");
 
 static inline void command_get_integer(const char *text_cmd, ICommandResult *command);
 static inline void SetCommand_implement(SetCommand *instance, const char *cmd, const char *cmd_data, const char *cmd_verify, EXP_TYPE type);
-static inline bool command_force_gtg();
+static inline bool command_gtg(void);
 
 void SetCommand_implement(SetCommand *instance, const char *cmd, const char *cmd_data, const char *cmd_verify, EXP_TYPE type)
 {
@@ -162,14 +163,26 @@ bool command_check_and_handle_ERROR()
 }
 */
 
-bool command_force_gtg()
-{
+bool command_gtg(void)
+{   
+    //send twice because it missed it once 
     serial_do(":CONT:EXEC", NULL, 0, NULL);    
-    return serial_do(":CONT:GTGR", NULL, 0, NULL);
+    serial_do(":CONT:GTGR", NULL, 0, NULL);     
+    return true;
+}
+
+bool command_gtg_on_error(void)
+{
+    serial_do(":CONT:EXEC", NULL, 0, NULL); 
+    serial_do(":CONT:GTGR", NULL, 0, NULL);    
+    serial_do("*CLS", NULL, 0, NULL);         
+    return true;
+
 }
 
 bool command_GTG_eventually()
 {   
+    /*
     bool send = true;
 
     STATUS st;
@@ -177,6 +190,7 @@ bool command_GTG_eventually()
     //while((st = status_check_event_registers()) != ST_IDLE_VENT)
     do
     {
+        status_dump_pressure_data_if_different("INHG", "INHG");
         if(st == ST_ERR)
             send = true;
 
@@ -190,9 +204,12 @@ bool command_GTG_eventually()
             }
         }
         sleep(4);        
-    } while((st = status_check_event_registers()) != ST_IDLE_VENT);
+    } while((st = status_check_event_registers(OPR_GTG)) != ST_AT_GOAL);
     
     return true;
+    */
+       
+    return control(0, "INHG", "INHG", OPR_GTG, command_gtg, command_gtg_on_error);
 }
 
 /*

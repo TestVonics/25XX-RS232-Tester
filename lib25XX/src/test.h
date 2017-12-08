@@ -1,6 +1,7 @@
 #pragma once
 #include <stdbool.h>
 //#include <stdint.h>
+#include "command.h"
 #include "control.h"
 
 typedef void(*wait_func)(void);

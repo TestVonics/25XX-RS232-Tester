@@ -10,6 +10,7 @@
 #include <time.h>
 #include <math.h>
 #include <stdbool.h>
+#include <glob.h>
 
 #include "utility.h"
 #include "serial.h"
@@ -20,44 +21,66 @@ typedef uint32_t uint32;
 
 /* If DEBUG_SERIAL enabled, enable _debug_serial and enable LOG_SERIAL*/
 #ifdef DEBUG_SERIAL
-    #define _debug_serial(fmt, ...) DEBUG_PRINT(fmt, ##__VA_ARGS__)
+    #define _debug_serial(fdm, fmt, ...) _DEBUG_PRINT(fdm, fmt, ##__VA_ARGS__)
     #ifndef LOG_SERIAL
         #define LOG_SERIAL
     #endif
 #endif
 
 /*If LOG_SERIAL is enabled, enable log_serial */
-#ifdef LOG_SERIAL
-    static int Serial_Com_Log; 
-    #define log_serial(fmt, ...) log_fd_line(Serial_Com_Log, fmt, ##__VA_ARGS__)
+static FD_MASK FDM_SER_LOG = FDM_INVALID;
+#ifdef LOG_SERIAL   
+    #define log_serial(fmt, ...) log_format_line(FDM_SER_LOG, fmt, ##__VA_ARGS__)
 #else
     #define log_serial(fmt, ...)    
 #endif
 
 /* Set debug_serial to call the functions of enabled macros*/
-#define debug_serial(fmt, ...) _debug_serial(fmt, ##__VA_ARGS__); \
+#define debug_serial(fmt, ...) _debug_serial(0, fmt, ##__VA_ARGS__); \
     log_serial(fmt, ##__VA_ARGS__)
 
 /*Print error statements to screen, will print to log if logging is enabled */
-#define error_serial(fmt, ...) ERROR_PRINT(fmt, ##__VA_ARGS__); \
-log_serial(fmt, ##__VA_ARGS__)
-
+#ifdef DEBUG
+    #define error_serial(fmt, ...) ERROR_PRINT(fmt, ##__VA_ARGS__); \
+    log_serial(fmt, ##__VA_ARGS__)
+#else
+    #define error_serial(fmt, ...) _ERROR_PRINT(FDM_SER_LOG, fmt, ##__VA_ARGS__) 
+#endif
 
 static int Serial;
-const char* const RS232 = "/dev/ttyUSB0";
+//const char* const RS232 = "/dev/ttyUSB0";
+#define RS232 get_RS232()
 
 //lowlevel unexposed api
 static inline int serial_try_read(char *buf, size_t bufsize);
 static inline bool serial_write(const char *str);
 static inline int serial_read_or_timeout(char *buf, size_t bufsize, uint64_t timeout);
 
+static const char *get_RS232()
+{
+    const char *rs232;
+    static char buf[256];
+    glob_t glob_results;
+    if(glob("/dev/ttyUSB*", GLOB_NOSORT, NULL, &glob_results) == 0)
+    {
+        snprintf(buf, sizeof(buf), "%s", glob_results.gl_pathv[0]); 
+        rs232 = buf;
+    }
+    else
+        rs232 = NULL;
+    globfree(&glob_results);
+    return rs232;
+}
+
 bool serial_init()
 {
     #ifdef LOG_SERIAL
-        Serial_Com_Log = open("com.log", O_WRONLY | O_APPEND);
-        if(Serial_Com_Log == -1)
+        int serial_com_log = open("com.log", O_WRONLY | O_APPEND);
+        if((serial_com_log == -1)||((FDM_SER_LOG = FDM_register_fd(serial_com_log)) == FDM_INVALID))
             return false;        
     #endif 
+
+    
     Serial = open(RS232, O_RDWR | O_NOCTTY | O_NDELAY);
 
     if (Serial == -1)
@@ -171,8 +194,9 @@ bool serial_do(const char *cmd, void *result, size_t result_size, int *num_resul
     do{
     redo = false;
 
-    //Keep sending until it goes through   
-    while(!serial_write(cmd)); 
+    //Fail if a write fails twice and still fails after a sleep  
+    if(((!serial_write(cmd)) && (sleep(4) >= 0))&&  (!serial_write(cmd)))
+        return false;
 
     //Read for one second max
     if((*num_result_read = serial_read_or_timeout(result, result_size, 1000)) > 0) 
@@ -200,6 +224,6 @@ void serial_close()
     close(Serial);
 
     #ifdef LOG_SERIAL
-        close(Serial_Com_Log);        
+        FDM_close(FDM_SER_LOG);        
     #endif 
 }

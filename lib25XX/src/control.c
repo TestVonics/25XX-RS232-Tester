@@ -12,18 +12,9 @@
 #include "status.h"
 #include "test.h"
 
-typedef enum {
-    CTRL_OP_PS        = 1 << 0,
-    CTRL_OP_PT        = 1 << 1,
-    CTRL_OP_DUAL      = (CTRL_OP_PS | CTRL_OP_PT)
-} CTRL_OP;
-
-
-
-static bool control(CTRL_OP op, uint64_t exp_time);
-static bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate);
-bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time);
-bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time);
+static bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate);
+//bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, const uint64_t exp_time);
+//bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, const uint64_t exp_time);
 
 bool control_run_test(const ControlTest *test)
 {
@@ -50,14 +41,25 @@ bool control_run_test(const ControlTest *test)
         ERROR_PRINT("Invalid units, passed in units is %d", (int)test->units); 
     }
 
-    OUTPUT_PRINT("Setting up ADTS Control:\n PS TARGET: %s %s PS RATE: %s %sPM PT TARGET: %s %s PT RATE %s %sPM", test->ps, ps_units, test->ps_rate, ps_rate_units_part, test->pt, pt_units, test->pt_rate, pt_rate_units_part);   
+    OUTPUT_PRINT("Setting up ADTS Control:\nPS TARGET: %s %s PS RATE: %s %sPM PT TARGET: %s %s PT RATE %s %sPM", test->ps, ps_units, test->ps_rate, ps_rate_units_part, test->pt, pt_units, test->pt_rate, pt_rate_units_part);   
     if(!control_setup(CTRL_OP_DUAL, ps_units, pt_units, test->ps, test->ps_rate, test->pt, test->pt_rate))
         return false;
     
     OUTPUT_PRINT("ADTS Control setup complete, System is NOW Controlling");    
-    return control(CTRL_OP_DUAL, test->duration);
+    if(!control(test->duration, ps_units, pt_units, OPR_STABLE, NULL, NULL))
+        return false;
+
+    OUTPUT_PRINT("Setpoint reached, verifying it remains STABLE for 30 seconds, checking every 5 seconds");  
+    for(uint64_t start = time_in_ms(); (time_in_ms() - start) < 30000; )
+    {
+        if(status_check_event_registers(OPR_STABLE) != ST_AT_GOAL)
+            return false;
+        sleep(5);
+    }
+    return true;
 }
 
+/*
 bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time)
 {
     if(!control_setup(CTRL_OP_DUAL, "FT", "KTS", ps, ps_rate, pt, pt_rate))
@@ -73,8 +75,9 @@ bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, cons
 
     return control(CTRL_OP_DUAL, exp_time);
 }
+*/
 
-bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate)
+bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate)
 {
     const SetCommandFull *commands[8];
     int command_index = 2;
@@ -208,60 +211,32 @@ bool control_setup(CTRL_OP op, const char *ps_units, const char *pt_units, const
 }
 
 
-bool control(CTRL_OP op, uint64_t exp_time)
+bool control(uint64_t exp_time, const char *ps_units, const char *pt_units, OPR success_mask, Control_Start_Func start_func, Control_On_Error on_error)
 {
-    OPR success_mask;
-    OPR check_states[2] = {(OPR)NULL, (OPR)NULL};
-    static const OPR ps_good = (OPR_PS_RAMPING | OPR_PS_STABLE);
-    static const OPR pt_good = (OPR_PT_RAMPING | OPR_PT_STABLE);
-    if(op == CTRL_OP_DUAL)
-    {
-        success_mask = OPR_STABLE;
-        check_states[0] = ps_good;
-        check_states[1] = pt_good;
-    }
-    else if(op & CTRL_OP_PS)
-    {
-        check_states[0] = ps_good;
-        success_mask = OPR_PS_STABLE;
-    }
-    else if(op & CTRL_OP_PT)
-    {
-        check_states[0] = pt_good;
-        success_mask = OPR_PT_STABLE;
-    }
-    
+    if(exp_time == 0)
+        exp_time = UINT64_MAX;    
     
     //EXECUTE
-    serial_do(":CONT:EXEC", NULL, 0, NULL);   
-    StatOperEven soe;
+    if(start_func == NULL)
+        serial_do(":CONT:EXEC", NULL, 0, NULL); 
+    else
+        start_func();   
     uint64_t start = time_in_ms();
-
+    STATUS st;
     //While we are not stable, check every 5 seconds    
-    while(!((soe = command_StatOperEven()).opr & success_mask))
-    { 
-        /*
-        //This strategy doesn't work because sometimes it doesn't report
-        //one of the channels
-        if(!(soe.opr & check_states[0]) )
+    for(;;)
+    {
+        if((st = status_check_event_registers(success_mask)) == ST_ERR)
         {
-            printf("Error: PS is in INVALID STATE\n");
-            status_check_event_registers();
-            return false;
-        }
-     
-        if(check_states[1] != (OPR)NULL)
-        {
-            if(!(soe.opr & check_states[1]))
-            {
-                printf("Error: PT is in INVALID STATE\n");
-                status_check_event_registers();
-                return false;
-            }
-        }*/
+            if((on_error == NULL) || (!on_error()))
+                return false; 
+         
+        }      
+ 
+        status_dump_pressure_data_if_different(ps_units, pt_units);
 
-        if(status_check_event_registers() == ST_ERR)
-            return false;   
+        if(st == ST_AT_GOAL)
+            break;
 
         if((time_in_ms()- start) > exp_time)
         {

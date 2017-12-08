@@ -9,6 +9,14 @@
 #include "command.h"
 #include "utility.h"
 
+typedef struct LastStatus {
+    STB stb;
+    QUE que;
+    ESB esb;
+    OPR opr;
+} LastStatus;
+
+/*
 bool status_is_idle()
 {    
     if(status_check_event_registers() == ST_IDLE_VENT)
@@ -23,58 +31,72 @@ bool status_is_idle()
 
     return false;
 }
-
+*/
 #define CHECK_ERROR_BIT(INT, COND) \
 do { if(INT & COND) \
-         fprintf(stderr, "Error: " #COND "\n"); } \
+         ERROR_PRINT("Error: " #COND); } \
 while(0)           
 
 #define CHECK_OPR_BIT(INT, COND) \
 do { if(INT & COND) \
-         fprintf(stderr, "OPR: " #COND "\n"); } \
+         OUTPUT_PRINT("OPR: " #COND); } \
 while(0)
-STATUS status_check_event_registers()
+STATUS status_check_event_registers(const OPR opr_goal)
 {
+    static LastStatus lastStatus;
     STBCommand stbc = command_STB();
-    STATUS status = ST_IDLE_VENT;
+    STATUS status = ST_AT_GOAL;
     if(!stbc.succeed)
         return ST_ERR;
 
     //if STB isn't 0 we aren't idle in most cases
     //if(stbc.stb & STB_ALL)
     if(stbc.stb != 0)
+    {
         status = ST_NOT_IDLE;
+        if(stbc.stb != lastStatus.stb)
+            OUTPUT_PRINT("________________________________________________");
+    }
 
+    StatQuesEven sqe = {0};
     if(stbc.stb & STB_QUE)
     {        
-        StatQuesEven sqe = command_StatQuesEven();
+        sqe = command_StatQuesEven();
         if(!sqe.succeed || (sqe.que & QUE_ALL))
         {
             status = ST_ERR;
-            CHECK_ERROR_BIT(sqe.que, QUE_PS_OVER);
-            CHECK_ERROR_BIT(sqe.que, QUE_PT_OVER);
-            CHECK_ERROR_BIT(sqe.que, QUE_PS_TRACK_LOSS);
-            CHECK_ERROR_BIT(sqe.que, QUE_PT_TRACK_LOSS);
-            CHECK_ERROR_BIT(sqe.que, QUE_PS_COEFF_ERR);
-            CHECK_ERROR_BIT(sqe.que, QUE_PT_COEFF_ERR);                                                                                                                                                                 
+            if(sqe.que != lastStatus.que)
+            {
+                CHECK_ERROR_BIT(sqe.que, QUE_PS_OVER);
+                CHECK_ERROR_BIT(sqe.que, QUE_PT_OVER);
+                CHECK_ERROR_BIT(sqe.que, QUE_PS_TRACK_LOSS);
+                CHECK_ERROR_BIT(sqe.que, QUE_PT_TRACK_LOSS);
+                CHECK_ERROR_BIT(sqe.que, QUE_PS_COEFF_ERR);
+                CHECK_ERROR_BIT(sqe.que, QUE_PT_COEFF_ERR); 
+            }                                                                                                                                                                
         } 
     }
 
+    ESR esr = {0};
     if(stbc.stb & STB_ESB)
     {        
-        ESR esr = command_ESR();        
+        esr = command_ESR();        
         if(!esr.succeed || (esr.esb & ESB_ERR))
         {
             status = ST_ERR;
-            CHECK_ERROR_BIT(esr.esb, ESB_DDE);
-            CHECK_ERROR_BIT(esr.esb, ESB_EXE);
-            CHECK_ERROR_BIT(esr.esb, ESB_CME);            
+            if(esr.esb != lastStatus.esb)
+            {
+                CHECK_ERROR_BIT(esr.esb, ESB_DDE);
+                CHECK_ERROR_BIT(esr.esb, ESB_EXE);
+                CHECK_ERROR_BIT(esr.esb, ESB_CME);
+            }            
         }
     }
 
+    StatOperEven soe = {0};
     if(stbc.stb & STB_OPR)
     {        
-        StatOperEven soe = command_StatOperEven();         
+        soe = command_StatOperEven();         
         if(!soe.succeed) 
         {
             status = ST_ERR;
@@ -82,27 +104,57 @@ STATUS status_check_event_registers()
         } 
         else if(soe.opr & OPR_ALL)
         {
-            CHECK_OPR_BIT(soe.opr, OPR_STABLE);
-            CHECK_OPR_BIT(soe.opr, OPR_RAMPING);
-            CHECK_OPR_BIT(soe.opr, OPR_LEAKT_STABLE);
-            CHECK_OPR_BIT(soe.opr, OPR_VOLUMET_DONE);
-            CHECK_OPR_BIT(soe.opr, OPR_PS_STABLE);
-            CHECK_OPR_BIT(soe.opr, OPR_PS_RAMPING);
-            CHECK_OPR_BIT(soe.opr, OPR_PT_STABLE);
-            CHECK_OPR_BIT(soe.opr, OPR_PT_RAMPING);
-            CHECK_OPR_BIT(soe.opr, OPR_SELFT_DONE);
-            CHECK_OPR_BIT(soe.opr, OPR_GTG);
+            if(soe.opr != lastStatus.opr)
+            {
+                CHECK_OPR_BIT(soe.opr, OPR_STABLE);
+                CHECK_OPR_BIT(soe.opr, OPR_RAMPING);
+                CHECK_OPR_BIT(soe.opr, OPR_LEAKT_STABLE);
+                CHECK_OPR_BIT(soe.opr, OPR_VOLUMET_DONE);
+                CHECK_OPR_BIT(soe.opr, OPR_PS_STABLE);
+                CHECK_OPR_BIT(soe.opr, OPR_PS_RAMPING);
+                CHECK_OPR_BIT(soe.opr, OPR_PT_STABLE);
+                CHECK_OPR_BIT(soe.opr, OPR_PT_RAMPING);
+                CHECK_OPR_BIT(soe.opr, OPR_SELFT_DONE);
+                CHECK_OPR_BIT(soe.opr, OPR_GTG);
+            }
 
             //if only OPR is set in STB and OPR only reports that it hit ground
             //we also qualify as idle
-            if(soe.opr == OPR_GTG)
+            if(soe.opr & opr_goal)
             {               
-                status = ST_IDLE_VENT;
+                status = ST_AT_GOAL;
             }
         }              
     }
     //printf("Exiting %s, status is %d\n", __func__, status);
+    lastStatus.stb = stbc.stb;
+    lastStatus.esb = esr.esb;
+    lastStatus.opr = soe.opr;
+    lastStatus.que = sqe.que;
     return status;    
 }       
+
+
+void status_dump_pressure_data_if_different(const char *ps_units, const char *pt_units)
+{
+    static char last_ps[12], last_pt[12];
+    char ps[12], pt[12];
+
+    char ps_cmd[16] = ":MEAS:PS? ";    
+    strcpy(ps_cmd + 10, ps_units);   
+    if(!serial_do(ps_cmd, ps, LENGTH_2D(ps), NULL))
+        return;
+
+    char pt_cmd[16] = ":MEAS:PT? ";
+    strcpy(pt_cmd + 10, pt_units);
+    if(!serial_do(pt_cmd, pt, LENGTH_2D(pt), NULL))
+        return;    
+    
+    if((strcmp(ps, last_ps) != 0)|| (strcmp(pt, last_pt)!= 0))
+        OUTPUT_PRINT("PS: %s %s PT: %s %s", ps, ps_units, pt, pt_units);
+
+    memcpy(last_ps, ps, LENGTH_2D(last_ps));
+    memcpy(last_pt, pt, LENGTH_2D(last_ps));
+}
 
  
