@@ -13,6 +13,7 @@
 
 #include "utility.h"
 #include "test.h"
+#include "serial.h"
 
 typedef uint8_t byte;
 typedef uint64_t uint64;
@@ -24,19 +25,21 @@ void reset_terminal_mode();
 
 //my prototypes
 void wait_for_user();
+int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize);
 
 int main(int argc, char **argv)
-{
-    printf("25XX Tester\n");
+{    
     set_terminal_mode();
     
-    if(!lib_init())
+    SCPIDeviceManager sdm;
+    if(!lib_init(&sdm, "231", "245"))
     {
-        exit(1);
+        return 1;
     }    
+
     test_run_all(&wait_for_user);
 
-    lib_close();
+    lib_close(&sdm);
     
     return 0;
 }
@@ -45,6 +48,16 @@ void wait_for_user()
 {
     printf("Press any key to continue\n");
     while(getchar() == EOF){}
+}
+
+int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize)
+{        
+    if(data_id & IN_DATA_CTRL_ADTS_SN)
+        return snprintf(buf, bufsize, "%s", "231");
+    else if(data_id & IN_DATA_MEAS_ADTS_SN)
+        return snprintf(buf, bufsize, "%s", "245");
+
+    return -1;
 }
 
 

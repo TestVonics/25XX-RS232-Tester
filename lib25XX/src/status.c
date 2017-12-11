@@ -58,7 +58,7 @@ STATUS status_check_event_registers(const OPR opr_goal)
             OUTPUT_PRINT("________________________________________________");
     }
 
-    StatQuesEven sqe = {0};
+    StatQuesEven sqe = {{{0}}};
     if(stbc.stb & STB_QUE)
     {        
         sqe = command_StatQuesEven();
@@ -77,23 +77,24 @@ STATUS status_check_event_registers(const OPR opr_goal)
         } 
     }
 
-    ESR esr = {0};
+    ESR esr = {{{0}}};
     if(stbc.stb & STB_ESB)
     {        
         esr = command_ESR();        
         if(!esr.succeed || (esr.esb & ESB_ERR))
         {
             status = ST_ERR;
-            if(esr.esb != lastStatus.esb)
+            //if(esr.esb != lastStatus.esb)
             {
                 CHECK_ERROR_BIT(esr.esb, ESB_DDE);
                 CHECK_ERROR_BIT(esr.esb, ESB_EXE);
-                CHECK_ERROR_BIT(esr.esb, ESB_CME);
+                CHECK_ERROR_BIT(esr.esb, ESB_CME); 
+                serial_do(":SYST:ERR?", NULL, 0, NULL);
             }            
         }
     }
 
-    StatOperEven soe = {0};
+    StatOperEven soe = {{{0}}};
     if(stbc.stb & STB_OPR)
     {        
         soe = command_StatOperEven();         

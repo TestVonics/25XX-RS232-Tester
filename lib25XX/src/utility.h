@@ -4,6 +4,10 @@
 #include <stdbool.h>
 
 typedef unsigned int uint;
+typedef uint8_t byte;
+typedef uint64_t uint64;
+typedef uint32_t uint32;
+
 uint64_t time_in_ms();
 
 #define FORCEINLINE static __attribute__((always_inline)) inline
@@ -33,12 +37,14 @@ FD_MASK FDM_TEST_LOG;
 bool lib_init();
 bool log_init();
 void lib_close();
+typedef struct SCPIDeviceManager SCPIDeviceManager;
+bool lib_init(SCPIDeviceManager  *sdm, const char *master_sn, const char *slave_sn);
 
 FD_MASK FDM_register_fd(const int fd);
 void FDM_close(FD_MASK mask);
 ssize_t log_format_debug(const FD_MASK fdm, const char * const function_src, const char* const _format, ...);
 ssize_t log_format_line(const FD_MASK fdm, const char *const _format, ...);
-bool build_filename_from_IDN(char *filename, const char *command_result);
+bool parse_sn(char *result, const char *src);
 
 #define OUTPUT_PRINT(fmt, ...) log_format_line(FDM_STDOUT | FDM_TEST_LOG, fmt, ##__VA_ARGS__)
 

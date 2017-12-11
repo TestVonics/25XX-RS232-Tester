@@ -122,6 +122,7 @@ static inline TEST *testset_get_test(const TEST_SET *test_set, const uint index)
     else return NULL;
 }
 
+/*
 //Makes sure basic communication is working
 bool system_info()
 {
@@ -147,13 +148,14 @@ bool system_info()
        
     return true;
 }
+*/
 
 //Run all the tests, pass in a callback of your waiting function
 void test_run_all(wait_func waitfun)
 {    
     //dump the system info
-    if(!system_info())
-        return;    
+    //if(!system_info())
+    //    return;    
    
     //Run the test sets
     uint passed_cnt = 0;

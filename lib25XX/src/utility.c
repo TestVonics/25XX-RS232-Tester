@@ -22,7 +22,7 @@ int vbuild_debug(char *dest, size_t dest_len ,const char * func_src, const char 
 static int add_newline(char *dest, const char *src, size_t dest_size);
 static int vformat_and_newline(char *dest, size_t dest_size, const char *const _format, va_list arg);
 ssize_t FDM_write(FD_MASK mask, const void *buf, size_t count);
-bool parse_sn(char *result, const char *src);
+static inline bool build_filename_from_sn(char *filename, const char *sn);
 
 #define FDM_MAX 8
 #define FD_INVALID -1
@@ -171,13 +171,8 @@ bool parse_sn(char *result, const char *src)
     return false;
 }
 
-bool build_filename_from_IDN(char *filename, const char *command_result)
+static inline bool build_filename_from_sn(char *filename, const char *sn)
 {
-    char sn[32];
-    if(!parse_sn(sn, command_result))
-        return false;
-   
-    
     time_t now = time(NULL);
     struct tm *timenow;
     timenow = localtime(&now);
@@ -185,6 +180,7 @@ bool build_filename_from_IDN(char *filename, const char *command_result)
     char filetemp[256];
     strftime(filetemp, sizeof(filetemp), "_%Y-%m-%d_%H:%M:%S.log", timenow);
     snprintf(filename, 256, "SN_%s%s", sn, filetemp);
+    DEBUG_PRINT("log filename: %s", filename);
     return true;
 }
 
@@ -199,16 +195,26 @@ uint64_t time_in_ms()
     return ms;
 }
 
-bool lib_init()
+bool lib_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slave_sn)
 {
-    if(!serial_init())
+    //make the main log file named after the master sn
+    char filename[256];
+    if(!build_filename_from_sn(filename, master_sn))
         return false;
+    if(!log_init(filename))
+        return false; 
+
+    OUTPUT_PRINT("ADC|ADTS|LSU RS232 Tester V0.1");
+    
+    //Initialize serial
+    if(!serial_init(sdm, master_sn, slave_sn))
+        return false;
+
     return true;
 }
 
-void lib_close()
+void lib_close(SCPIDeviceManager *sdm)
 {
-    serial_close();    
+    serial_close(sdm);    
     log_close();
-
 }

@@ -12,9 +12,39 @@
 #include "status.h"
 #include "test.h"
 
+bool control_set_units(const CTRL_UNITS units, const char **ps_units, const char **pt_units, const char **ps_rate_units_part, const char **pt_rate_units_part);
 static bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate);
 //bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, const uint64_t exp_time);
 //bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, const uint64_t exp_time);
+
+bool control_set_units(const CTRL_UNITS units, const char **ps_units, const char **pt_units, const char **ps_rate_units_part, const char **pt_rate_units_part)
+{
+    if(units & CTRL_UNITS_FK)
+    {
+        *ps_units = "FT";
+        *pt_units = "KTS";
+        *ps_rate_units_part = "F";
+        *pt_rate_units_part = "K";
+    }
+    else if(units & CTRL_UNITS_INHG)
+    {
+        *ps_units = "INHG";
+        *ps_rate_units_part = *ps_units;
+        *pt_units = "INHG";
+        *pt_rate_units_part = *pt_units;
+    }
+    else
+    {
+        ERROR_PRINT("Invalid units, passed in units is %d", (int)units); 
+        return false;
+    }
+    return true;
+}
+#define PS_FMT_PART           "PS TARGET: %s %s PS RATE: %s %sPM"
+#define PT_FMT_PART           "PT TARGET: %s %s PT RATE %s %sPM"
+#define SETTING_UP_ADTS_TEXT  "Setting up ADTS Control:\n"
+#define CONTROL_NOW_TEXT      "System is NOW Controlling"
+#define SETPOINT_REACHED_TEXT "Setpoint reached, verifying it remains STABLE for 30 seconds, checking every 5 seconds"
 
 bool control_run_test(const ControlTest *test)
 {
@@ -22,37 +52,67 @@ bool control_run_test(const ControlTest *test)
     const char *ps_rate_units_part;
     const char *pt_units;
     const char *pt_rate_units_part;
-    if(test->units & CTRL_UNITS_FK)
-    {
-        ps_units = "FT";
-        pt_units = "KTS";
-        ps_rate_units_part = "F";
-        pt_rate_units_part = "K";
-    }
-    else if(test->units & CTRL_UNITS_INHG)
-    {
-        ps_units = "INHG";
-        ps_rate_units_part = ps_units;
-        pt_units = "INHG";
-        pt_rate_units_part = pt_units;
-    }
-    else
-    {
-        ERROR_PRINT("Invalid units, passed in units is %d", (int)test->units); 
-    }
 
-    OUTPUT_PRINT("Setting up ADTS Control:\nPS TARGET: %s %s PS RATE: %s %sPM PT TARGET: %s %s PT RATE %s %sPM", test->ps, ps_units, test->ps_rate, ps_rate_units_part, test->pt, pt_units, test->pt_rate, pt_rate_units_part);   
+    if(!control_set_units(test->units, &ps_units, &pt_units, &ps_rate_units_part, &pt_rate_units_part))
+        return false;
+
+    OUTPUT_PRINT( SETTING_UP_ADTS_TEXT PS_FMT_PART " " PT_FMT_PART, test->ps, ps_units, test->ps_rate, ps_rate_units_part, test->pt, pt_units, test->pt_rate, pt_rate_units_part);   
     if(!control_setup(CTRL_OP_DUAL, ps_units, pt_units, test->ps, test->ps_rate, test->pt, test->pt_rate))
         return false;
     
-    OUTPUT_PRINT("ADTS Control setup complete, System is NOW Controlling");    
+    OUTPUT_PRINT("ADTS Control setup complete, " CONTROL_NOW_TEXT);    
     if(!control(test->duration, ps_units, pt_units, OPR_STABLE, NULL, NULL))
         return false;
 
-    OUTPUT_PRINT("Setpoint reached, verifying it remains STABLE for 30 seconds, checking every 5 seconds");  
+    OUTPUT_PRINT(SETPOINT_REACHED_TEXT);  
     for(uint64_t start = time_in_ms(); (time_in_ms() - start) < 30000; )
     {
         if(status_check_event_registers(OPR_STABLE) != ST_AT_GOAL)
+            return false;
+        sleep(5);
+    }
+    return true;
+}
+
+bool control_single_channel_test(const struct SingleChannelTest *test)
+{
+    const char *ps_units;
+    const char *ps_rate_units_part;
+    const char *pt_units;
+    const char *pt_rate_units_part;
+
+    if(!control_set_units(test->units, &ps_units, &pt_units, &ps_rate_units_part, &pt_rate_units_part))
+        return false;
+    
+    OPR opr;
+    if(test->op & CTRL_OP_PS)
+    {
+        OUTPUT_PRINT(SETTING_UP_ADTS_TEXT PS_FMT_PART, test->ps, ps_units, test->ps_rate, ps_rate_units_part);   
+        if(!control_setup(test->op, ps_units, NULL, test->ps, test->ps_rate, NULL, NULL))
+            return false;
+        opr = OPR_PS_STABLE;
+    }
+    else if(test->op & CTRL_OP_PT)
+    {
+        OUTPUT_PRINT(SETTING_UP_ADTS_TEXT PT_FMT_PART, test->pt, pt_units, test->pt_rate, pt_rate_units_part);
+        if(!control_setup(test->op, NULL, pt_units, NULL, NULL, test->pt, test->pt_rate))
+            return false;
+        opr = OPR_PT_STABLE;
+    }
+    else
+    {
+        DEBUG_PRINT("INVALID CHANNEL");
+        return false;
+    }
+    
+    OUTPUT_PRINT("ADTS Single Channel Control setup complete, " CONTROL_NOW_TEXT);    
+    if(!control(test->duration, ps_units, pt_units, opr, NULL, NULL))
+        return false;
+
+    OUTPUT_PRINT(SETPOINT_REACHED_TEXT);  
+    for(uint64_t start = time_in_ms(); (time_in_ms() - start) < 30000; )
+    {
+        if(status_check_event_registers(opr) != ST_AT_GOAL)
             return false;
         sleep(5);
     }

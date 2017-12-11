@@ -15,9 +15,11 @@
 #include "utility.h"
 #include "serial.h"
 
-typedef uint8_t byte;
-typedef uint64_t uint64;
-typedef uint32_t uint32;
+typedef enum {
+    SCPIDeviceType_Master = 1 << 0,
+    SCPIDeviceType_Slave  = 1 << 1,
+    SCPIDeviceType_Lsu    = 1 << 2
+} SCPIDeviceType;  
 
 /* If DEBUG_SERIAL enabled, enable _debug_serial and enable LOG_SERIAL*/
 #ifdef DEBUG_SERIAL
@@ -47,46 +49,29 @@ static FD_MASK FDM_SER_LOG = FDM_INVALID;
     #define error_serial(fmt, ...) _ERROR_PRINT(FDM_SER_LOG, fmt, ##__VA_ARGS__) 
 #endif
 
-static int Serial;
-//const char* const RS232 = "/dev/ttyUSB0";
-#define RS232 get_RS232()
-
 //lowlevel unexposed api
-static inline int serial_try_read(char *buf, size_t bufsize);
-static inline bool serial_write(const char *str);
-static inline int serial_read_or_timeout(char *buf, size_t bufsize, uint64_t timeout);
+static inline int serial_init_device(const char *path);
+static inline int serial_try_read(const int fd, char *buf, const size_t bufsize);
+static inline bool serial_write(const int fd, const char *str);
+static inline int serial_read_or_timeout(const int fd, char *buf, const size_t bufsize, const uint64_t timeout);
 
-static const char *get_RS232()
+static inline void serial_set(const int fd);
+
+static int Serial;
+
+void serial_set(const int fd)
 {
-    const char *rs232;
-    static char buf[256];
-    glob_t glob_results;
-    if(glob("/dev/ttyUSB*", GLOB_NOSORT, NULL, &glob_results) == 0)
-    {
-        snprintf(buf, sizeof(buf), "%s", glob_results.gl_pathv[0]); 
-        rs232 = buf;
-    }
-    else
-        rs232 = NULL;
-    globfree(&glob_results);
-    return rs232;
+    Serial = fd;
 }
 
-bool serial_init()
+int serial_init_device(const char *path)
 {
-    #ifdef LOG_SERIAL
-        int serial_com_log = open("com.log", O_WRONLY | O_APPEND);
-        if((serial_com_log == -1)||((FDM_SER_LOG = FDM_register_fd(serial_com_log)) == FDM_INVALID))
-            return false;        
-    #endif 
+    int device = open(path, O_RDWR | O_NOCTTY | O_NDELAY);
 
-    
-    Serial = open(RS232, O_RDWR | O_NOCTTY | O_NDELAY);
-
-    if (Serial == -1)
+    if (device == -1)
     {
         error_serial("Unable to open serial device");
-        return false;
+        return device;
     }
     else
     {
@@ -94,13 +79,13 @@ bool serial_init()
     }
 
     //setup after opening
-    fcntl(Serial, F_SETFL, 0);
+    fcntl(device, F_SETFL, 0);
     struct termios options;
-    tcgetattr(Serial, &options);
+    tcgetattr(device, &options);
     
     
     //Nonblocking read
-    fcntl(Serial, F_SETFL, FNDELAY);
+    fcntl(device, F_SETFL, FNDELAY);
     
     options.c_cflag |= (CLOCAL | CREAD);
     
@@ -121,17 +106,93 @@ bool serial_init()
     options.c_iflag |= (IXON | IXOFF | IXANY);  
     
     //set it finally
-    tcsetattr(Serial, TCSANOW, &options);    
+    tcsetattr(device, TCSANOW, &options);    
 
-
-
-    return true;
+    return device;
 }
 
-int serial_try_read(char *buf, size_t bufsize)
+bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slave_sn)
+{   
+    #ifdef LOG_SERIAL
+        int serial_com_log = open("com.log", O_WRONLY | O_APPEND);
+        if((serial_com_log == -1)||((FDM_SER_LOG = FDM_register_fd(serial_com_log)) == FDM_INVALID))
+            return false;        
+    #endif 
+
+    sdm->master.fd = -1;
+    sdm->slave.fd = -1;
+    sdm->lsu.fd = -1;
+    bool bRet = true;
+    glob_t glob_results;
+
+    if(glob("/dev/ttyUSB*", 0, NULL, &glob_results) == 0)
+    {
+        int fd;
+        for(uint i = 0; i < glob_results.gl_pathc; i++)
+        {
+            debug_serial("glob | Device %s found", glob_results.gl_pathv[i]);
+            fd = serial_init_device(glob_results.gl_pathv[i]);
+            if(fd == -1)
+            {                
+                error_serial("%s could not be initialized", glob_results.gl_pathv[i]);
+                //bRet = false;
+                continue;
+            }
+            serial_set(fd);
+            char buf[256];
+            if(!serial_do("*IDN?", buf, sizeof(buf), 0))
+            {
+                debug_serial("*IDN? failed for device: %s", glob_results.gl_pathv[i]);
+            }
+            else
+            {
+                char sn[32];
+                if(parse_sn(sn, buf))
+                {
+                    if(strncmp(sn, master_sn, strlen(master_sn)) == 0) 
+                    {
+                        sdm->master.fd = fd;
+                        debug_serial("SCPI Master set to fd %d", fd);                        
+                    }
+                    else if(strncmp(sn, slave_sn, strlen(slave_sn)) == 0)
+                    {
+                        sdm->slave.fd = fd;
+                        debug_serial("SCPI Slave set to fd %d", fd);
+                    }
+                    else
+                    {
+                        error_serial("SN %s not expected", sn);
+                        bRet = false;
+                    }
+                }
+                else if(strstr(buf, "LSU") != NULL)
+                {
+                    sdm->lsu.fd = fd;
+                    debug_serial("LSU set to fd %d", fd);
+                }
+                else
+                {
+                    error_serial("Unknown SCPI device connected");
+                    bRet = false;
+                }
+                OUTPUT_PRINT("%s", buf);
+                serial_do("*CLS", NULL, 0, NULL);        
+            }
+        }        
+    }
+    else
+    {
+        bRet = false;
+    }
+    globfree(&glob_results); 
+    serial_set(sdm->master.fd);
+    return bRet;
+}
+
+int serial_try_read(const int fd, char *buf, const size_t bufsize)
 {
     int n;
-    if((n = read(Serial, buf, bufsize)) > 0)
+    if((n = read(fd, buf, bufsize)) > 0)
     {
         buf[n-1] = '\0';
         log_serial("RECV (%d): %s", n, buf);
@@ -139,11 +200,11 @@ int serial_try_read(char *buf, size_t bufsize)
     return n;
 }
 
-int serial_read_or_timeout(char *buf, size_t bufsize, uint64_t timeout)
+int serial_read_or_timeout(const int fd, char *buf, const size_t bufsize, const uint64_t timeout)
 {
     int n; 
     uint64 start_time = time_in_ms();
-    while(((n = serial_try_read(buf, bufsize)) <= 0) && ((time_in_ms() - start_time) < timeout));
+    while(((n = serial_try_read(fd, buf, bufsize)) <= 0) && ((time_in_ms() - start_time) < timeout));
     return n;
 }
 
@@ -160,7 +221,7 @@ bool serial_integer_cmd(const char *cmd, int *result)
 }
 
 
-bool serial_write(const char *str)
+bool serial_write(const int fd, const char *str)
 {   
     //store in writeable area, append message end character
     char buf[256];
@@ -168,7 +229,7 @@ bool serial_write(const char *str)
     size_t message_len = strlen(buf)+1; 
     buf[message_len-1] = '\n';
 
-    bool bRet = (write(Serial, buf, message_len) > 0);
+    bool bRet = (write(fd, buf, message_len) > 0);
     
     //print what we just sent
     buf[message_len-1] = '\0';
@@ -177,6 +238,11 @@ bool serial_write(const char *str)
 }
 
 bool serial_do(const char *cmd, void *result, size_t result_size, int *num_result_read)
+{
+    return serial_fd_do(Serial, cmd, result, result_size, num_result_read);
+}
+
+bool serial_fd_do(const int fd, const char *cmd, void *result, size_t result_size, int *num_result_read)
 {      
     //Setup some variables to store data if not provided by caller
     char buf[256];
@@ -195,17 +261,17 @@ bool serial_do(const char *cmd, void *result, size_t result_size, int *num_resul
     redo = false;
 
     //Fail if a write fails twice and still fails after a sleep  
-    if(((!serial_write(cmd)) && (sleep(4) >= 0))&&  (!serial_write(cmd)))
+    if(((!serial_write(fd, cmd)) && (sleep(4) >= 0))&&  (!serial_write(fd, cmd)))
         return false;
 
     //Read for one second max
-    if((*num_result_read = serial_read_or_timeout(result, result_size, 1000)) > 0) 
+    if((*num_result_read = serial_read_or_timeout(fd, result, result_size, 1000)) > 0) 
     {
         //See if what we read was an ERROR 
         if(strncmp((const char*)result, "ERROR", strlen("ERROR")) == 0)
         { 
             //We recieved an error, get it and return false           
-            serial_do(":SYST:ERR?", result, result_size, num_result_read); 
+            serial_fd_do(fd, ":SYST:ERR?", result, result_size, num_result_read); 
             return false; 
         }
         //We RECV non error data, success
@@ -219,9 +285,11 @@ bool serial_do(const char *cmd, void *result, size_t result_size, int *num_resul
     return true;
 }
 
-void serial_close()
+void serial_close(SCPIDeviceManager *sdm)
 {
-    close(Serial);
+    close(sdm->master.fd);
+    close(sdm->slave.fd);
+    close(sdm->lsu.fd);
 
     #ifdef LOG_SERIAL
         FDM_close(FDM_SER_LOG);        
