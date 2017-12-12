@@ -26,6 +26,7 @@ void reset_terminal_mode();
 //my prototypes
 void wait_for_user();
 int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize);
+char *add_input(char *buf, size_t buflen);
 
 int main(int argc, char **argv)
 {    
@@ -86,5 +87,10 @@ void set_terminal_mode()
     new_termios.c_cc[VTIME] = 0;
 
     tcsetattr(0, TCSANOW, &new_termios);
+}
+
+char *add_input(char *buf, size_t buflen)
+{
+    //fget(buf, buflen, 
 }
 

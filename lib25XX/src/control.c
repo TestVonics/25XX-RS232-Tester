@@ -61,7 +61,7 @@ bool control_run_test(const ControlTest *test)
         return false;
     
     OUTPUT_PRINT("ADTS Control setup complete, " CONTROL_NOW_TEXT);    
-    if(!control(test->duration, ps_units, pt_units, OPR_STABLE, NULL, NULL))
+    if(!control(test->duration, ps_units, pt_units, OPR_STABLE, NULL, NULL, NULL))
         return false;
 
     OUTPUT_PRINT(SETPOINT_REACHED_TEXT);  
@@ -72,6 +72,11 @@ bool control_run_test(const ControlTest *test)
         sleep(5);
     }
     return true;
+}
+
+static void measure_ps_test1()
+{
+    measure_rate(&serial_get_SDM()->slave, CTRL_OP_PS, "", 0, 0);
 }
 
 bool control_single_channel_test(const struct SingleChannelTest *test)
@@ -85,10 +90,11 @@ bool control_single_channel_test(const struct SingleChannelTest *test)
         return false;
     
     OPR opr;
+    //a single channel ps test is really a dual channel test with 0 knots
     if(test->op & CTRL_OP_PS)
     {
         OUTPUT_PRINT(SETTING_UP_ADTS_TEXT PS_FMT_PART, test->ps, ps_units, test->ps_rate, ps_rate_units_part);   
-        if(!control_setup(test->op, ps_units, NULL, test->ps, test->ps_rate, NULL, NULL))
+        if(!control_setup(CTRL_OP_DUAL, ps_units, pt_units, test->ps, test->ps_rate, "0", "0"))
             return false;
         opr = OPR_PS_STABLE;
     }
@@ -106,7 +112,7 @@ bool control_single_channel_test(const struct SingleChannelTest *test)
     }
     
     OUTPUT_PRINT("ADTS Single Channel Control setup complete, " CONTROL_NOW_TEXT);    
-    if(!control(test->duration, ps_units, pt_units, opr, NULL, NULL))
+    if(!control(test->duration, ps_units, pt_units, opr, NULL, NULL, measure_ps_test1))
         return false;
 
     OUTPUT_PRINT(SETPOINT_REACHED_TEXT);  
@@ -271,7 +277,7 @@ bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units,
 }
 
 
-bool control(uint64_t exp_time, const char *ps_units, const char *pt_units, OPR success_mask, Control_Start_Func start_func, Control_On_Error on_error)
+bool control(uint64_t exp_time, const char *ps_units, const char *pt_units, OPR success_mask, Control_Start_Func start_func, Control_On_Error on_error, Control_EachCycle cycle_func)
 {
     if(exp_time == 0)
         exp_time = UINT64_MAX;    
@@ -302,10 +308,67 @@ bool control(uint64_t exp_time, const char *ps_units, const char *pt_units, OPR 
         {
             OUTPUT_PRINT("Timeout, control not performed in %llu\n", (long long unsigned)exp_time);
             return false;
-        }    
+        } 
+
+        if(cycle_func != NULL)
+            cycle_func();   
                
         sleep(5);
     }
 
     return true;
 }
+
+bool measure_rate(const ADTS *adts, const CTRL_OP op, const char *units,  const double expected_rate, const double max_difference)
+{
+    //set the channel
+    const char *set_channel;
+    const char *expected;
+    if(op & CTRL_OP_PS)
+    {
+        set_channel = ":MEAS:MODE PS";
+        expected = "PS";
+    }
+    else if(op & CTRL_OP_PT)
+    {
+        set_channel = ":MEAS:MODE PT";
+        expected = "PT";
+    }
+    DEBUG_PRINT("ADTS fd is %d", adts->fd);
+    if(!serial_fd_do(adts->fd, set_channel, NULL, 0, NULL))
+        return false;
+    //DEBUG_PRINT("PASSED FIRST SERIAL_DO");     
+    if(!command_and_check_result_str_fd(adts->fd, ":MEAS:MODE?", expected))
+        return false;
+
+    //put in measure mode
+    if(!serial_fd_do(adts->fd, ":SYST:MODE MEAS", NULL, 0, NULL))
+        return false;
+    if(!command_and_check_result_str_fd(adts->fd, ":SYST:MODE?", "MEAS"))
+        return false; 
+
+    //start climb test
+    if(!serial_fd_do(adts->fd, ":MEAS:CLIMB:TEST ON", NULL, 0, NULL))
+        return false;
+
+    char buf[256]; //"inhgpm"
+    if(!serial_fd_do(adts->fd, ":MEAS:CLIMB:TEST?", buf, sizeof(buf), NULL))
+        return false;
+
+    //read the rate of climb
+    //char buf[256]; //:MEAS:CLIMB:RATE? FPM
+    if(!serial_fd_do(adts->fd, ":MEAS:CLIMB:RATE?", buf, sizeof(buf), NULL))
+        return false;
+
+    return true;
+}
+
+
+
+
+
+
+
+
+
+

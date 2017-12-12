@@ -1,19 +1,31 @@
 #pragma once
 #include <stdint.h>
 
-typedef struct
-{
-    int fd;
 
+typedef enum SCPIType {
+    SCPIType_ADTS = 1 << 0,
+    SCPIType_LSU  = 1 << 1
+}SCPIType;
 
-} SCPIDevice;
+#define _SCPIDevice struct { \
+    SCPIType type; \
+    int fd; \
+} 
+
+typedef _SCPIDevice SCPIDevice;
+
+typedef struct ADTS {
+    _SCPIDevice;
+} ADTS;
 
 typedef struct SCPIDeviceManager
 {
-    SCPIDevice master;
-    SCPIDevice slave;
+    ADTS master;
+    ADTS slave;
     SCPIDevice lsu;
 }SCPIDeviceManager;
+
+SCPIDeviceManager *serial_get_SDM();
 
 bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slave_sn);
 

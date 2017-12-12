@@ -65,11 +65,11 @@ void command_get_integer(const char *text_cmd, ICommandResult *command)
         command->succeed = true;
 }
 
-bool command_and_check_result_str(const char *msg, const char *expected_result)
+bool command_and_check_result_str_fd(const int fd, const char *msg, const char *expected_result)
 {
     int n;
     char buf[256];
-    if(!serial_do(msg, buf, sizeof(buf), &n))
+    if(!serial_fd_do(fd, msg, buf, sizeof(buf), &n))
         return false;
     
     if((n-1) != (int)strlen(expected_result))
@@ -81,11 +81,11 @@ bool command_and_check_result_str(const char *msg, const char *expected_result)
     return true;
 }
 
-bool command_and_check_result_float(const char *msg, double expected_result)
+bool command_and_check_result_float_fd(const int fd, const char *msg, double expected_result)
 {
     int n;
     char buf[256];
-    if(!serial_do(msg, buf, sizeof(buf), &n))
+    if(!serial_fd_do(fd, msg, buf, sizeof(buf), &n))
         return false;
 
     double recvD = strtod(buf, NULL);
@@ -165,8 +165,10 @@ bool command_check_and_handle_ERROR()
 
 bool command_gtg(void)
 {   
-    //send twice because it missed it once 
-    serial_do(":CONT:EXEC", NULL, 0, NULL);    
+    ////send twice because it missed it once 
+    serial_do(":SYST:MODE CTRL", NULL, 0, NULL);
+    serial_do(":CONT:MODE DUAL", NULL, 0, NULL);
+    //serial_do(":CONT:EXEC", NULL, 0, NULL);    
     serial_do(":CONT:GTGR", NULL, 0, NULL);     
     return true;
 }
@@ -209,7 +211,7 @@ bool command_GTG_eventually()
     return true;
     */
        
-    return control(0, "INHG", "INHG", OPR_GTG, command_gtg, command_gtg_on_error);
+    return control(0, "INHG", "INHG", OPR_GTG, command_gtg, command_gtg_on_error, NULL);
 }
 
 /*

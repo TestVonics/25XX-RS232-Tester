@@ -18,7 +18,8 @@ bool system_info();
 typedef _TEST TEST;
 typedef bool (*test_func)(const TEST *test);
 typedef enum TEST_T{
-    TEST_T_CTRL
+    TEST_T_CTRL,
+    TEST_T_MEAS
 } TEST_T;
 
 #define _TEST_SET struct { \
@@ -98,20 +99,47 @@ static ControlTestSet ControlTests = {
       }, CTRL_UNITS_INHG, 360000, "32.148", "40.000", "73.545", "50.000"
     },
 }};
-#define NUM_CONTROL_TESTS LENGTH_2D(ControlTests.tests)
+//#define NUM_CONTROL_TESTS LENGTH_2D(ControlTests.tests)
+#define NUM_CONTROL_TESTS 0
+
+typedef struct SingleChannelTestSet {
+    _TEST_SET;
+    SingleChannelTest tests[2];
+} SingleChannelTestSet;
+
+static SingleChannelTestSet SingleChannelTests = {
+{
+    TEST_T_MEAS,
+    (test_func)(control_single_channel_test),
+    "ADTS Control and Measure"
+}, 
+{
+    { 
+      {  "Control Rate of Climb - Aeronautical Units",
+         "Connect the PS and the PT units from unit to another.",
+         NULL,         
+      }, CTRL_UNITS_FK, 160000, CTRL_OP_PS, {{.ps = "80000", .ps_rate = "50000"}}
+    },
+
+
+}};
+#define NUM_MEAS_TESTS LENGTH_2D(SingleChannelTests.tests) -1
 
 static TEST_SET *TestSets[] = 
 {
     (TEST_SET*)&ControlTests,
+    (TEST_SET*)&SingleChannelTests,
 };
 #define NUM_TEST_SETS LENGTH_2D(TestSets)
 
-#define NUM_TESTS NUM_CONTROL_TESTS
+#define NUM_TESTS (NUM_CONTROL_TESTS + NUM_MEAS_TESTS)
 
 static inline int testset_get_num_tests(const TEST_SET *test_set)
 {
     if(test_set->type == TEST_T_CTRL)
         return NUM_CONTROL_TESTS;
+    else if(test_set->type == TEST_T_MEAS)
+        return NUM_MEAS_TESTS;
     else return -1;
 }
 
@@ -119,6 +147,8 @@ static inline TEST *testset_get_test(const TEST_SET *test_set, const uint index)
 {    
     if(test_set->type == TEST_T_CTRL)
         return (TEST*)&(((ControlTestSet*)test_set)->tests[index]);
+    else if(test_set->type == TEST_T_MEAS)
+        return (TEST*)&(((SingleChannelTestSet*)test_set)->tests[index]);
     else return NULL;
 }
 

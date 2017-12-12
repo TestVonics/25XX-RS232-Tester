@@ -55,15 +55,6 @@ static inline int serial_try_read(const int fd, char *buf, const size_t bufsize)
 static inline bool serial_write(const int fd, const char *str);
 static inline int serial_read_or_timeout(const int fd, char *buf, const size_t bufsize, const uint64_t timeout);
 
-static inline void serial_set(const int fd);
-
-static int Serial;
-
-void serial_set(const int fd)
-{
-    Serial = fd;
-}
-
 int serial_init_device(const char *path)
 {
     int device = open(path, O_RDWR | O_NOCTTY | O_NDELAY);
@@ -111,6 +102,13 @@ int serial_init_device(const char *path)
     return device;
 }
 
+static SCPIDeviceManager SDM;
+
+SCPIDeviceManager *serial_get_SDM()
+{
+    return &SDM;
+}
+
 bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slave_sn)
 {   
     #ifdef LOG_SERIAL
@@ -138,9 +136,9 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
                 //bRet = false;
                 continue;
             }
-            serial_set(fd);
+            
             char buf[256];
-            if(!serial_do("*IDN?", buf, sizeof(buf), 0))
+            if(!serial_fd_do(fd, "*IDN?", buf, sizeof(buf), 0))
             {
                 debug_serial("*IDN? failed for device: %s", glob_results.gl_pathv[i]);
             }
@@ -176,7 +174,7 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
                     bRet = false;
                 }
                 OUTPUT_PRINT("%s", buf);
-                serial_do("*CLS", NULL, 0, NULL);        
+                serial_fd_do(fd, "*CLS", NULL, 0, NULL);        
             }
         }        
     }
@@ -185,7 +183,8 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
         bRet = false;
     }
     globfree(&glob_results); 
-    serial_set(sdm->master.fd);
+    SDM = *sdm;
+    
     return bRet;
 }
 
@@ -239,7 +238,7 @@ bool serial_write(const int fd, const char *str)
 
 bool serial_do(const char *cmd, void *result, size_t result_size, int *num_result_read)
 {
-    return serial_fd_do(Serial, cmd, result, result_size, num_result_read);
+    return serial_fd_do(SDM.master.fd, cmd, result, result_size, num_result_read);
 }
 
 bool serial_fd_do(const int fd, const char *cmd, void *result, size_t result_size, int *num_result_read)
@@ -248,19 +247,19 @@ bool serial_fd_do(const int fd, const char *cmd, void *result, size_t result_siz
     char buf[256];
     if(result == NULL)
     {
-        result = buf;
+        result = buf;        
         result_size = sizeof(buf);
     }
     int n;
     if(num_result_read == NULL)
         num_result_read = &n;
 
+    //DEBUG_PRINT("%p %p buf, &buf", buf, &buf);
     //Loop until confirmed success or failure
-    bool redo;
-    do{
-    redo = false;
+    for(int i = 0; i < 3; i++) {
+    //DEBUG_PRINT("%p result", result);
 
-    //Fail if a write fails twice and still fails after a sleep  
+    //Fail if a write fails and still fails after a sleep  
     if(((!serial_write(fd, cmd)) && (sleep(4) >= 0))&&  (!serial_write(fd, cmd)))
         return false;
 
@@ -277,12 +276,12 @@ bool serial_fd_do(const int fd, const char *cmd, void *result, size_t result_siz
         //We RECV non error data, success
         return true; 
     }
-    else if(result != buf)
-        redo = true; //Resend the command, we were expecting a response and didn't RECV anything
-    else
-        return true; //We weren't expecting a response and did not RECV ERROR, success
-    } while(redo);
-    return true;
+    else if(result == buf)
+        return true; //We weren't expecting a response and did not RECV ERROR, success 
+    
+    }
+ 
+    return false; //We didnt recieve a response after a certain amount of attempts
 }
 
 void serial_close(SCPIDeviceManager *sdm)

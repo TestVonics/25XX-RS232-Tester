@@ -1,6 +1,8 @@
 #pragma once
 #include <stdbool.h>
 
+#include "serial.h"
+
 //returned bytes
 typedef enum {
     STB_BIT_0 = 1 << 0,
@@ -162,8 +164,12 @@ StatQuesEven command_StatQuesEven();
 ESR command_ESR();
 STBCommand command_STB();
 
-bool command_and_check_result_str(const char *msg, const char *expected_result);
-bool command_and_check_result_float(const char *msg, double expected_result);
+bool command_and_check_result_str_fd(const int fd, const char *msg, const char *expected_result);
+bool command_and_check_result_float_fd(const int fd, const char *msg, double expected_result);
+#define command_and_check_result_str(msg, expected) command_and_check_result_str_fd(serial_get_SDM()->master.fd, msg, expected)
+#define command_and_check_result_float(msg, expected) command_and_check_result_float_fd(serial_get_SDM()->master.fd, msg, expected)
+//bool command_and_check_result_str(const char *msg, const char *expected_result);
+//bool command_and_check_result_float(const char *msg, const double expected_result);
 
 bool command_check_and_handle_ERROR();
 
