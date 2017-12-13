@@ -11,6 +11,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <glob.h>
+#include <assert.h>
 
 #include "utility.h"
 #include "serial.h"
@@ -38,13 +39,13 @@ static FD_MASK FDM_SER_LOG = FDM_INVALID;
 #endif
 
 /* Set debug_serial to call the functions of enabled macros*/
-#define debug_serial(fmt, ...) _debug_serial(0, fmt, ##__VA_ARGS__); \
-    log_serial(fmt, ##__VA_ARGS__)
+#define debug_serial(fmt, ...) do {_debug_serial(0, fmt, ##__VA_ARGS__); \
+    log_serial(fmt, ##__VA_ARGS__);} while(0)
 
 /*Print error statements to screen, will print to log if logging is enabled */
 #ifdef DEBUG
-    #define error_serial(fmt, ...) ERROR_PRINT(fmt, ##__VA_ARGS__); \
-    log_serial(fmt, ##__VA_ARGS__)
+    #define error_serial(fmt, ...) do { ERROR_PRINT(fmt, ##__VA_ARGS__); \
+    log_serial(fmt, ##__VA_ARGS__);} while(0)
 #else
     #define error_serial(fmt, ...) _ERROR_PRINT(FDM_SER_LOG, fmt, ##__VA_ARGS__) 
 #endif
@@ -188,13 +189,26 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
     return bRet;
 }
 
+//BAD HACK 
+static uint64 last_time;
+void update_last_time()
+{
+    last_time = time_in_ms();
+}
+
 int serial_try_read(const int fd, char *buf, const size_t bufsize)
 {
     int n;
     if((n = read(fd, buf, bufsize)) > 0)
     {
+        update_last_time();
         buf[n-1] = '\0';
-        log_serial("RECV (%d): %s", n, buf);
+        log_serial("RECV|t=%llu|(%d): %s", time_in_ms(), n, buf);
+        
+        char stuff[256];
+        ssize_t z;     
+        if((z = read(fd, stuff, sizeof(stuff))) > 0)
+            debug_serial("WHY is there DATA: (%ld) %s", z, stuff);
     }
     return n;
 }
@@ -220,6 +234,18 @@ bool serial_integer_cmd(const char *cmd, int *result)
 }
 
 
+
+#define TIME_TO_WAIT 100
+void wait_for_time_to_write()
+{
+    struct timespec ts;
+    uint64 time_elapsed = time_in_ms() - last_time;
+    if(time_elapsed < TIME_TO_WAIT)
+    {
+        SLEEP_MS(&ts, TIME_TO_WAIT - time_elapsed);
+    }
+}
+
 bool serial_write(const int fd, const char *str)
 {   
     //store in writeable area, append message end character
@@ -228,11 +254,13 @@ bool serial_write(const int fd, const char *str)
     size_t message_len = strlen(buf)+1; 
     buf[message_len-1] = '\n';
 
+    wait_for_time_to_write();
+    
     bool bRet = (write(fd, buf, message_len) > 0);
     
     //print what we just sent
     buf[message_len-1] = '\0';
-    log_serial("SEND (%lu): %s", message_len, buf);
+    log_serial("SEND|t=%llu|(%lu): %s", time_in_ms(), message_len, buf);
     return bRet;    
 }
 

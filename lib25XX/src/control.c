@@ -12,8 +12,9 @@
 #include "status.h"
 #include "test.h"
 
-bool control_set_units(const CTRL_UNITS units, const char **ps_units, const char **pt_units, const char **ps_rate_units_part, const char **pt_rate_units_part);
+static bool control_set_units(const CTRL_UNITS units, const char **ps_units, const char **pt_units, const char **ps_rate_units_part, const char **pt_rate_units_part);
 static bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate);
+static bool measure_setup(const ADTS *adts, const CTRL_OP op);
 //bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, const uint64_t exp_time);
 //bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, const uint64_t exp_time);
 
@@ -89,16 +90,17 @@ bool control_single_channel_test(const struct SingleChannelTest *test)
     if(!control_set_units(test->units, &ps_units, &pt_units, &ps_rate_units_part, &pt_rate_units_part))
         return false;
     
-    OPR opr;
-    //a single channel ps test is really a dual channel test with 0 knots
-    if(test->op & CTRL_OP_PS)
+    //Setup the main unit to control
+    OPR opr;    
+    if(test->op == CTRL_OP_PS)
     {
         OUTPUT_PRINT(SETTING_UP_ADTS_TEXT PS_FMT_PART, test->ps, ps_units, test->ps_rate, ps_rate_units_part);   
+        //a single channel ps test is really a dual channel test with 0 knots
         if(!control_setup(CTRL_OP_DUAL, ps_units, pt_units, test->ps, test->ps_rate, "0", "0"))
             return false;
         opr = OPR_PS_STABLE;
     }
-    else if(test->op & CTRL_OP_PT)
+    else if(test->op == CTRL_OP_PT)
     {
         OUTPUT_PRINT(SETTING_UP_ADTS_TEXT PT_FMT_PART, test->pt, pt_units, test->pt_rate, pt_rate_units_part);
         if(!control_setup(test->op, NULL, pt_units, NULL, NULL, test->pt, test->pt_rate))
@@ -110,7 +112,12 @@ bool control_single_channel_test(const struct SingleChannelTest *test)
         DEBUG_PRINT("INVALID CHANNEL");
         return false;
     }
+
+    //Put the other unit in measure mode
+    if(!measure_setup(&serial_get_SDM()->slave, test->op))
+        return false;
     
+    //Start controling
     OUTPUT_PRINT("ADTS Single Channel Control setup complete, " CONTROL_NOW_TEXT);    
     if(!control(test->duration, ps_units, pt_units, opr, NULL, NULL, measure_ps_test1))
         return false;
@@ -319,15 +326,17 @@ bool control(uint64_t exp_time, const char *ps_units, const char *pt_units, OPR 
     return true;
 }
 
-bool measure_rate(const ADTS *adts, const CTRL_OP op, const char *units,  const double expected_rate, const double max_difference)
+bool measure_setup(const ADTS *adts, const CTRL_OP op)
 {
     //set the channel
     const char *set_channel;
     const char *expected;
+
+    //has to be dual
     if(op & CTRL_OP_PS)
     {
-        set_channel = ":MEAS:MODE PS";
-        expected = "PS";
+        set_channel = ":MEAS:MODE DUAL";
+        expected = "DUAL";
     }
     else if(op & CTRL_OP_PT)
     {
@@ -336,8 +345,7 @@ bool measure_rate(const ADTS *adts, const CTRL_OP op, const char *units,  const 
     }
     DEBUG_PRINT("ADTS fd is %d", adts->fd);
     if(!serial_fd_do(adts->fd, set_channel, NULL, 0, NULL))
-        return false;
-    //DEBUG_PRINT("PASSED FIRST SERIAL_DO");     
+        return false;         
     if(!command_and_check_result_str_fd(adts->fd, ":MEAS:MODE?", expected))
         return false;
 
@@ -349,15 +357,18 @@ bool measure_rate(const ADTS *adts, const CTRL_OP op, const char *units,  const 
 
     //start climb test
     if(!serial_fd_do(adts->fd, ":MEAS:CLIMB:TEST ON", NULL, 0, NULL))
+        return false;     
+    if(!command_and_check_result_str_fd(adts->fd, ":MEAS:CLIMB:TEST?", "ON"))
         return false;
 
-    char buf[256]; //"inhgpm"
-    if(!serial_fd_do(adts->fd, ":MEAS:CLIMB:TEST?", buf, sizeof(buf), NULL))
-        return false;
+    return true;
+}
 
-    //read the rate of climb
-    //char buf[256]; //:MEAS:CLIMB:RATE? FPM
-    if(!serial_fd_do(adts->fd, ":MEAS:CLIMB:RATE?", buf, sizeof(buf), NULL))
+bool measure_rate(const ADTS *adts, const CTRL_OP op, const char *units,  const double expected_rate, const double max_difference)
+{
+    //read the rate of climb    
+    char buf[256];
+    if(!serial_fd_do(adts->fd, ":MEAS:CLIMB:RATE? FPM", buf, sizeof(buf), NULL))
         return false;
 
     return true;

@@ -121,6 +121,13 @@ static SingleChannelTestSet SingleChannelTests = {
       }, CTRL_UNITS_FK, 160000, CTRL_OP_PS, {{.ps = "80000", .ps_rate = "50000"}}
     },
 
+    { 
+      {  "Control Rate of Change - Aeronautical Units",
+         "Connect the PS and the PT units from unit to another.",
+         NULL,         
+      }, CTRL_UNITS_FK, 160000, CTRL_OP_PT, {.pt = "80000", .pt_rate = "50000"}
+    },
+
 
 }};
 #define NUM_MEAS_TESTS LENGTH_2D(SingleChannelTests.tests) -1

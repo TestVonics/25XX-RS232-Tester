@@ -164,11 +164,10 @@ bool command_check_and_handle_ERROR()
 */
 
 bool command_gtg(void)
-{   
-    ////send twice because it missed it once 
+{       
     serial_do(":SYST:MODE CTRL", NULL, 0, NULL);
     serial_do(":CONT:MODE DUAL", NULL, 0, NULL);
-    //serial_do(":CONT:EXEC", NULL, 0, NULL);    
+    serial_do(":CONT:EXEC", NULL, 0, NULL);    
     serial_do(":CONT:GTGR", NULL, 0, NULL);     
     return true;
 }

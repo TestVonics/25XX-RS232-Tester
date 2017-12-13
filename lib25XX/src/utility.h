@@ -38,7 +38,9 @@ bool lib_init();
 bool log_init();
 void lib_close();
 typedef struct SCPIDeviceManager SCPIDeviceManager;
-bool lib_init(SCPIDeviceManager  *sdm, const char *master_sn, const char *slave_sn);
+
+typedef const char *(*get_buf_func)(void);
+bool lib_init(SCPIDeviceManager  *sdm, get_buf_func master_sn, get_buf_func slave_sn, get_buf_func ask_name);
 
 FD_MASK FDM_register_fd(const int fd);
 void FDM_close(FD_MASK mask);

@@ -33,7 +33,7 @@ debug: $(TARGET)
 #build static library
 $(TARGET): $(BUILDDIR)/main.o $(STLIBDIR)/lib$(LIB25XX).a
 	mkdir -p $(@D)
-	gcc -o $@ $(filter-out $(STLIBDIR)/lib$(LIB25XX).a, $^) -L$(STLIBDIR) -l$(LIB25XX) -lm
+	$(CC) -o $@ $(filter-out $(STLIBDIR)/lib$(LIB25XX).a, $^) -L$(STLIBDIR) -l$(LIB25XX) -lm
 
 $(BUILDDIR)/main.o: $(SRCDIR)/main.c
 	mkdir -p $(BUILDDIR)	
