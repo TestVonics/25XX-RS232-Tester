@@ -100,13 +100,13 @@ bool control_single_channel_test(const struct SingleChannelTest *test)
             return false;
         opr = OPR_PS_STABLE;
     }
-    else if(test->op == CTRL_OP_PT)
+    /*else if(test->op == CTRL_OP_PT)
     {
         OUTPUT_PRINT(SETTING_UP_ADTS_TEXT PT_FMT_PART, test->pt, pt_units, test->pt_rate, pt_rate_units_part);
         if(!control_setup(test->op, NULL, pt_units, NULL, NULL, test->pt, test->pt_rate))
             return false;
         opr = OPR_PT_STABLE;
-    }
+    }*/
     else
     {
         DEBUG_PRINT("INVALID CHANNEL");
@@ -199,7 +199,7 @@ bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units,
         else
             return false;      
         if(ps)
-        {               
+        {            
             commands[command_index++] = SetCommandFull_construct(&ps_setp_cmd, ps_setp_exp_type, ":CONT:PS:SETP", ps, ":CONT:PS:SETP?");             
         }
 
@@ -252,6 +252,7 @@ bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units,
     for(int i = 0; i < command_index; i++)
     {
         currentCommand = (SetCommand*)commands[i];
+        //serial_do(":CONT:PS:MAXSETP?", NULL, 0, NULL);
         if(!serial_do(currentCommand->cmd, NULL, 0, NULL))
             return false;
         if(currentCommand->type & EXP_TYPE_STR)
@@ -278,8 +279,7 @@ bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units,
             }
             
         }        
-    }  
-    
+    }      
     return true;
 }
 

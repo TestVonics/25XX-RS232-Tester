@@ -195,7 +195,7 @@ uint64_t time_in_ms()
     return ms;
 }
 
-bool lib_init(SCPIDeviceManager *sdm, get_buf_func master_sn, get_buf_func slave_sn, get_buf_func ask_name)
+bool lib_init(SCPIDeviceManager *sdm, get_buf_func master_sn, get_buf_func slave_sn, get_buf_func ask_name, yes_or_no_func yes_no)
 {
     
     const char *name = ask_name();
@@ -210,13 +210,14 @@ bool lib_init(SCPIDeviceManager *sdm, get_buf_func master_sn, get_buf_func slave
 
     OUTPUT_PRINT("ADC|ADTS|LSU RS232 Tester V0.1");
     OUTPUT_PRINT("Tester name: %s", name);
-    OUTPUT_PRINT("Master unit: %s", master);     
-    OUTPUT_PRINT("Slave unit: %s", slave);
+    OUTPUT_PRINT("Master unit S/N: %s", master);     
+    OUTPUT_PRINT("Slave unit S/N: %s", slave);
 
     //Initialize serial   
     if(!serial_init(sdm, master, slave))
         return false;
 
+    Yes_No = yes_no;
     return true;
 }
 

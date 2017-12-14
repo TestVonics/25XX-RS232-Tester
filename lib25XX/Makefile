@@ -29,7 +29,7 @@ debug: CFLAGS += -Wno-unused-parameter -DDEBUG -g
 debug: $(TARGET)
 
 #build static library
-$(TARGET): $(BUILDDIR)/serial.o $(BUILDDIR)/test.o $(BUILDDIR)/status.o $(BUILDDIR)/utility.o $(BUILDDIR)/command.o $(BUILDDIR)/control.o
+$(TARGET): $(BUILDDIR)/serial.o $(BUILDDIR)/test.o $(BUILDDIR)/status.o $(BUILDDIR)/utility.o $(BUILDDIR)/command.o $(BUILDDIR)/control.o $(BUILDDIR)/lsu.o
 	mkdir -p $(@D)
 	mkdir -p log
 	ar rcs $@ $^
@@ -55,6 +55,10 @@ $(BUILDDIR)/command.o: $(SRCDIR)/command.c
 	$(CC) -c $^ $(CFLAGS) -o $@
 
 $(BUILDDIR)/control.o: $(SRCDIR)/control.c
+	mkdir -p $(BUILDDIR)	
+	$(CC) -c $^ $(CFLAGS) -o $@
+
+$(BUILDDIR)/lsu.o: $(SRCDIR)/lsu.c
 	mkdir -p $(BUILDDIR)	
 	$(CC) -c $^ $(CFLAGS) -o $@
 

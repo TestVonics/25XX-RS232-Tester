@@ -138,6 +138,7 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
                 continue;
             }
             
+            
             char buf[256];
             if(!serial_fd_do(fd, "*IDN?", buf, sizeof(buf), 0))
             {
@@ -145,18 +146,21 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
             }
             else
             {
+                const char *device_name = "SCPI Unknown";
                 char sn[32];
                 if(parse_sn(sn, buf))
                 {
                     if(strncmp(sn, master_sn, strlen(master_sn)) == 0) 
                     {
                         sdm->master.fd = fd;
-                        debug_serial("SCPI Master set to fd %d", fd);                        
+                        debug_serial("SCPI Master set to fd %d", fd); 
+                        device_name = "SCPI Master";                       
                     }
                     else if(strncmp(sn, slave_sn, strlen(slave_sn)) == 0)
                     {
                         sdm->slave.fd = fd;
                         debug_serial("SCPI Slave set to fd %d", fd);
+                        device_name = "SCPI Slave";
                     }
                     else
                     {
@@ -168,13 +172,14 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
                 {
                     sdm->lsu.fd = fd;
                     debug_serial("LSU set to fd %d", fd);
+                    device_name = "SCPI LSU";
                 }
                 else
                 {
                     error_serial("Unknown SCPI device connected");
                     bRet = false;
                 }
-                OUTPUT_PRINT("%s", buf);
+                OUTPUT_PRINT("%s: %s", device_name, buf);
                 serial_fd_do(fd, "*CLS", NULL, 0, NULL);        
             }
         }        

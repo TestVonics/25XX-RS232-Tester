@@ -27,6 +27,7 @@ void reset_terminal_mode();
 void wait_for_user();
 int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize);
 char *add_input(char *buf, size_t buflen);
+bool yes_no();
 
 /*
 #define CMACHINE(OP, PARAM1, PARAM2)
@@ -59,7 +60,7 @@ int main(int argc, char **argv)
 {    
     SCPIDeviceManager sdm;
     
-    if(!lib_init(&sdm, get_master_id, get_slave_id, get_tester_name))
+    if(!lib_init(&sdm, get_master_id, get_slave_id, get_tester_name, yes_no))
     {
         return 1;
     }    
@@ -70,6 +71,22 @@ int main(int argc, char **argv)
     lib_close(&sdm);
     
     return 0;
+}
+
+bool yes_no()
+{
+    printf("(Y)es or (N)o? ");
+    fflush(stdout);
+    int c;
+    do {
+        while((c = getchar()) == EOF){}
+        if(c == 'y')
+            return true;
+        else if( c == 'n')
+            return false;
+        else
+            printf("Invalid key pressed %c\n", c);
+    }while(1);
 }
 
 void wait_for_user()

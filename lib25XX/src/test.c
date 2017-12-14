@@ -11,21 +11,22 @@
 #include "control.h"
 #include "utility.h"
 #include "command.h"
+#include "lsu.h"
 
-
-bool system_info();
 
 typedef _TEST TEST;
 typedef bool (*test_func)(const TEST *test);
 typedef enum TEST_T{
     TEST_T_CTRL,
-    TEST_T_MEAS
+    TEST_T_MEAS,
+    TEST_T_LSUV,
 } TEST_T;
 
 #define _TEST_SET struct { \
     const TEST_T type; \
     test_func test_func; \
     const char *name; \
+    const bool master_gtg_before_each_test; \
 }
 typedef _TEST_SET TEST_SET;
 static inline int testset_get_num_tests(const TEST_SET *test_set);
@@ -47,7 +48,8 @@ static ControlTestSet ControlTests = {
 {
     TEST_T_CTRL,
     (test_func)(control_run_test),
-    "ADTS Control"
+    "ADTS Control",
+    true
 }, 
 {
     { 
@@ -99,47 +101,112 @@ static ControlTestSet ControlTests = {
       }, CTRL_UNITS_INHG, 360000, "32.148", "40.000", "73.545", "50.000"
     },
 }};
-//#define NUM_CONTROL_TESTS LENGTH_2D(ControlTests.tests)
-#define NUM_CONTROL_TESTS 0
+#define NUM_CONTROL_TESTS 0 //LENGTH_2D(ControlTests.tests)
 
 typedef struct SingleChannelTestSet {
     _TEST_SET;
-    SingleChannelTest tests[2];
+    SingleChannelTest tests[1];
 } SingleChannelTestSet;
 
 static SingleChannelTestSet SingleChannelTests = {
 {
     TEST_T_MEAS,
     (test_func)(control_single_channel_test),
-    "ADTS Control and Measure"
-}, 
+    "ADTS Control and Measure",
+    true
+}, .tests =
 {
     { 
       {  "Control Rate of Climb - Aeronautical Units",
          "Connect the PS and the PT units from unit to another.",
          NULL,         
-      }, CTRL_UNITS_FK, 160000, CTRL_OP_PS, {{.ps = "80000", .ps_rate = "50000"}}
+      }, CTRL_UNITS_FK, 160000, CTRL_OP_PS, {.ps = "80000"}, {.ps_rate = "50000"}
     },
-
-    { 
-      {  "Control Rate of Change - Aeronautical Units",
-         "Connect the PS and the PT units from unit to another.",
-         NULL,         
-      }, CTRL_UNITS_FK, 160000, CTRL_OP_PT, {.pt = "80000", .pt_rate = "50000"}
-    },
-
-
 }};
-#define NUM_MEAS_TESTS LENGTH_2D(SingleChannelTests.tests) -1
+#define NUM_MEAS_TESTS 0//LENGTH_2D(SingleChannelTests.tests)
+
+typedef struct LSUValveTestSet {
+    _TEST_SET;
+    LSUValveTest tests[9];
+} LSUValveTestSet;
+
+#define strLSUOpenAndClose "LSU Valve Open and Close"
+#define strLSUSetup        "No additional setup required"
+#define strLSUTask         "Answer the prompts"
+static LSUValveTestSet LSUValveTests = {
+{
+    TEST_T_LSUV,
+    (test_func)(lsu_valve_test),
+    strLSUOpenAndClose,
+    false
+}, .tests = 
+{
+    {
+      {  strLSUOpenAndClose " All Valves",
+         strLSUSetup,
+         strLSUTask,
+      }, "ALL"
+    },
+    {
+      {  strLSUOpenAndClose " PS #1",
+         strLSUSetup,
+         strLSUTask,
+      }, "1"
+    },
+    {
+      {  strLSUOpenAndClose " PS #2",
+         strLSUSetup,
+         strLSUTask,
+      }, "2"
+    },
+    {
+      {  strLSUOpenAndClose " PS #3",
+         strLSUSetup,
+         strLSUTask,
+      }, "3"
+    },
+    {
+      {  strLSUOpenAndClose " PS #4",
+         strLSUSetup,
+         strLSUTask,
+      }, "4"
+    },
+    {
+      {  strLSUOpenAndClose " PT #1",
+         strLSUSetup,
+         strLSUTask,
+      }, "5"
+    },
+    {
+      {  strLSUOpenAndClose " PT #2",
+         strLSUSetup,
+         strLSUTask,
+      }, "6"
+    },
+    {
+      {  strLSUOpenAndClose " PT #3",
+         strLSUSetup,
+         strLSUTask,
+      }, "7"
+    },
+    {
+      {  strLSUOpenAndClose " PT #4",
+         strLSUSetup,
+         strLSUTask,
+      }, "8"
+    },
+}};
+#define NUM_LSUV_TESTS LENGTH_2D(LSUValveTests.tests)
 
 static TEST_SET *TestSets[] = 
 {
     (TEST_SET*)&ControlTests,
     (TEST_SET*)&SingleChannelTests,
+    (TEST_SET*)&LSUValveTests,
 };
 #define NUM_TEST_SETS LENGTH_2D(TestSets)
 
-#define NUM_TESTS (NUM_CONTROL_TESTS + NUM_MEAS_TESTS)
+#define NUM_TESTS (NUM_CONTROL_TESTS + NUM_MEAS_TESTS + NUM_LSUV_TESTS)
 
 static inline int testset_get_num_tests(const TEST_SET *test_set)
 {
@@ -147,6 +214,8 @@ static inline int testset_get_num_tests(const TEST_SET *test_set)
         return NUM_CONTROL_TESTS;
     else if(test_set->type == TEST_T_MEAS)
         return NUM_MEAS_TESTS;
+    else if(test_set->type == TEST_T_LSUV)
+        return NUM_LSUV_TESTS;
     else return -1;
 }
 
@@ -156,68 +225,41 @@ static inline TEST *testset_get_test(const TEST_SET *test_set, const uint index)
         return (TEST*)&(((ControlTestSet*)test_set)->tests[index]);
     else if(test_set->type == TEST_T_MEAS)
         return (TEST*)&(((SingleChannelTestSet*)test_set)->tests[index]);
+    else if(test_set->type == TEST_T_LSUV)
+        return (TEST*)&(((LSUValveTestSet*)test_set)->tests[index]);
     else return NULL;
 }
 
-/*
-//Makes sure basic communication is working
-bool system_info()
-{
-    //clear any errors to start with 
-    if(!serial_do("*CLS", NULL, 0, NULL))
-        return false;
-
-    //dump this information to screen for the user
-    //and generate our log filename 
-    char buf[256];   
-    if(!serial_do("*IDN?", buf, sizeof(buf), NULL))
-         return false; 
-
-    char filename[256];
-    if(!build_filename_from_IDN(filename, buf))
-        return false;
-
-    DEBUG_PRINT(filename);
-    if(!log_init(filename))
-         return false;     
-
-    OUTPUT_PRINT(buf);
-       
-    return true;
-}
-*/
-
 //Run all the tests, pass in a callback of your waiting function
-void test_run_all(wait_func waitfun)
-{    
-    //dump the system info
-    //if(!system_info())
-    //    return;    
-   
+void test_run_all(wait_func waitfunc)
+{   
     //Run the test sets
-    uint passed_cnt = 0;
-    bool test_results[NUM_TESTS];    
+    uint passed_cnt = 0;      
     uint current_test = 0;
     for(uint i = 0; i < NUM_TEST_SETS; i++)
     {
-        //Run the test set tests
-        OUTPUT_PRINT("Entering test set: %s (%u/%u)", TestSets[i]->name, i+1,NUM_TEST_SETS); 
+        //Setup the test set
+        OUTPUT_PRINT("\nEntering test set: %s (%u/%u)", TestSets[i]->name, i+1,NUM_TEST_SETS); 
         uint test_set_passed_cnt = 0;
         int num_tests = testset_get_num_tests(TestSets[i]);
-        for(uint j = 0; (int)j < num_tests; j++)
-        {           
-            //start each test vented and idle
-            OUTPUT_PRINT("Test setup - Controlling to ground");
-            command_GTG_eventually();    
 
-            //get rid of leftovers, once we are safely at ground
+        //Run the test set tests
+        for(uint j = 0; (int)j < num_tests; j++)
+        {    
+            //if the tests involve the master, we will GTG before each test
+            if(TestSets[i]->master_gtg_before_each_test)
+            {                
+                OUTPUT_PRINT("Test setup - Controlling to ground");
+                command_GTG_eventually();
+            }
+
+            //get rid of leftovers
             if(!serial_do("*CLS", NULL, 0, NULL))
                 return;    
 
             TEST *test;
-            assert((test = testset_get_test(TestSets[i], j)) != NULL);                
-
-            OUTPUT_PRINT("\nTest set %s - Test #%u: %s", TestSets[i]->name, j+1, test->test_name);
+            assert((test = testset_get_test(TestSets[i], j)) != NULL); 
+            OUTPUT_PRINT("Test set %s - Test #%u: %s", TestSets[i]->name, j+1, test->test_name);
             OUTPUT_PRINT("SETUP: %s", test->setup);
             if(test->user_task == NULL)
             {
@@ -225,23 +267,21 @@ void test_run_all(wait_func waitfun)
             }
       
             OUTPUT_PRINT("TASK: %s",test->user_task);
-            waitfun();        
+            waitfunc();        
             
             //Finally run the test function
             if(TestSets[i]->test_func(test))
             {
                 OUTPUT_PRINT("Test set %s - Test #%u PASSED\n", TestSets[i]->name, j+1);
-                test_set_passed_cnt++;                 
-                test_results[current_test] = true;         
+                test_set_passed_cnt++;                         
             }
             else
             {
-                ERROR_PRINT("Test set %s - Test #%u FAILED\n", TestSets[i]->name, j+1);
-                test_results[current_test] = false; 
+                ERROR_PRINT("Test set %s - Test #%u FAILED\n", TestSets[i]->name, j+1);                
             }
             ++current_test;
         }
-        OUTPUT_PRINT("Test set: %s complete, (%u/%u) tests PASSED", TestSets[i]->name, test_set_passed_cnt, (uint)num_tests); 
+        OUTPUT_PRINT("\nTest set: %s complete, (%u/%u) tests PASSED", TestSets[i]->name, test_set_passed_cnt, (uint)num_tests); 
         passed_cnt += test_set_passed_cnt;
     }
 
@@ -253,28 +293,3 @@ void test_run_all(wait_func waitfun)
     serial_do(":SYST:REMOTE DISABLE", NULL, 0, NULL);   
 }
 
-/*
-
-if(passed_cnt > 0)
-    {
-        char passed_str[256];
-        char *str = passed_str - 4;
-        uint i;
-        for(i = 0; i < NUM_TESTS; i++)
-        {
-            if(test_results[i])
-            {
-                snprintf(str += 4, 5, " %d,", i+1);            
-            }        
-        }
-        //replace the last comma
-        passed_str[((i-1)*4)+3] = '\0';
-        OUTPUT_PRINT("\nTests complete, tests [%s] PASSED (%u/%lu)\n", passed_str, passed_cnt, NUM_TESTS);
-    }
-    else
-    {
-        
-        OUTPUT_PRINT("\nTests complete, no tests PASSED (%u/%lu)\n", NUM_TESTS);
-    }
-
-*/

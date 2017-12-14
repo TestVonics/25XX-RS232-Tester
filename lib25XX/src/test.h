@@ -15,7 +15,7 @@ typedef enum {
 
 typedef int(*get_data_func)(const IN_DATA_ID data_id, char *buf, const size_t bufsize);
 
-void test_run_all(wait_func waitfun);
+void test_run_all(wait_func waitfunc);
 
 #define _TEST struct { \
     const char *test_name; \
@@ -39,14 +39,19 @@ typedef struct SingleChannelTest {
     const uint64_t duration;
     CTRL_OP op;
     union {
-        struct {
-            const char *ps;
-            const char *ps_rate;
-        };
-        struct {
-            const char *pt;
-            const char *pt_rate;
-        };
+        const char *ps;
+        const char *pt;
     };
+    union {
+        const char *ps_rate;
+        const char *pt_rate;
+    };    
 } SingleChannelTest;
+
+typedef bool (*yes_or_no_func)();
+typedef struct LSUValveTest {
+    _TEST;
+    const char *valve_number;
+    //const yes_or_no_func yes_no;
+} LSUValveTest;
 
