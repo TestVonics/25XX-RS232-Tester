@@ -3,8 +3,8 @@ ifndef ARCH
   ARCH = x86_64
 endif
 
-#Same for both ARCH. LOG_SERIAL writes a log file of serial messages
-CFLAGS = -Wall -Wextra -Wformat  -std=gnu11
+#Same for both ARCH, avoid possibly aliasing options breaking our casts
+CFLAGS = -Wall -Wextra -Wformat  -std=gnu11 -fno-strict-aliasing
 SRCDIR := src
 
 #ARCH specific

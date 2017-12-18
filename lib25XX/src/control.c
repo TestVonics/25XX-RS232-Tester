@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 #include "command.h"
 #include "control.h"
@@ -15,8 +16,7 @@
 static bool control_set_units(const CTRL_UNITS units, const char **ps_units, const char **pt_units, const char **ps_rate_units_part, const char **pt_rate_units_part);
 static bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate);
 static bool measure_setup(const ADTS *adts, const CTRL_OP op);
-//bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, const uint64_t exp_time);
-//bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, const uint64_t exp_time);
+static bool leak_test_set_tolerances(const ADTS *adts, const char *set_cmd, const char *query_cmd, const double tolerance);
 
 bool control_set_units(const CTRL_UNITS units, const char **ps_units, const char **pt_units, const char **ps_rate_units_part, const char **pt_rate_units_part)
 {
@@ -80,7 +80,7 @@ static void measure_ps_test1()
     measure_rate(&serial_get_SDM()->slave, CTRL_OP_PS, "", 0, 0);
 }
 
-bool control_single_channel_test(const struct SingleChannelTest *test)
+bool control_single_channel_test(const SingleChannelTest *test)
 {
     const char *ps_units;
     const char *ps_rate_units_part;
@@ -131,24 +131,6 @@ bool control_single_channel_test(const struct SingleChannelTest *test)
     }
     return true;
 }
-
-/*
-bool control_dual_FK(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time)
-{
-    if(!control_setup(CTRL_OP_DUAL, "FT", "KTS", ps, ps_rate, pt, pt_rate))
-        return false;
-
-    return control(CTRL_OP_DUAL, exp_time);
-}
-
-bool control_dual_INHG(const char *ps, const char *ps_rate, const char *pt, const char *pt_rate, uint64_t exp_time)
-{
-    if(!control_setup(CTRL_OP_DUAL, "INHG", "INHG", ps, ps_rate, pt, pt_rate))
-        return false;
-
-    return control(CTRL_OP_DUAL, exp_time);
-}
-*/
 
 bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate)
 {
@@ -265,6 +247,7 @@ bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units,
                 if(!command_and_check_result_str(currentCommand->cmd_verify, ((SetCommandExpectString*)currentCommand)->expected))
                     return false;
                 */
+                return false;
             }
         }
         else if(currentCommand->type & EXP_TYPE_FP)
@@ -275,7 +258,8 @@ bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units,
                     return false;
                 if(!command_and_check_result_float(currentCommand->cmd_verify, ((SetCommandExpectFP*)currentCommand)->expected))
                     return false;
-                */ 
+                */
+                return false;
             }
             
         }        
@@ -371,6 +355,97 @@ bool measure_rate(const ADTS *adts, const CTRL_OP op, const char *units,  const 
     if(!serial_fd_do(adts->fd, ":MEAS:CLIMB:RATE? FPM", buf, sizeof(buf), NULL))
         return false;
 
+    return true;
+}
+
+bool leak_test_set_tolerances(const ADTS *adts, const char *set_cmd, const char *query_cmd, const double tolerance)
+{
+    char cmd[64];
+    snprintf(cmd, sizeof(cmd), "%s %f", set_cmd, tolerance);
+    if(!serial_fd_do(adts->fd, cmd, NULL, 0, NULL))
+        return false;
+    
+    if(!command_and_check_result_float_fd(adts->fd, query_cmd, tolerance))
+        return false;
+
+    return true;
+}
+
+bool control_run_leak_test(const LeakTest *test)
+{
+    //get the unit controlling
+    if(!control_run_test((const ControlTest*)test))
+        return false;
+
+    OUTPUT_PRINT("System is stable, start leak test stabilizing for %s minutes %s seconds", test->delay_minutes, test->delay_seconds);
+
+    //set the tolerances for display
+    if(!leak_test_set_tolerances(&(serial_get_SDM()->master), ":LEAK:PSTOL", ":LEAK:PSTOL?", test->ps_tolerance))
+        return false;
+    if(!leak_test_set_tolerances(&(serial_get_SDM()->master), ":LEAK:PTTOL", ":LEAK:PTTOL?", test->pt_tolerance))
+        return false;
+
+    //set the delay
+    char delay[32];
+    snprintf(delay, sizeof(delay), "%s, %s", test->delay_minutes, test->delay_seconds);
+    char delay_cmd[64];
+    snprintf(delay_cmd, sizeof(delay_cmd), ":LEAK:DELAY %s", delay);
+    if(!serial_fd_do(serial_get_SDM()->master.fd, delay_cmd, NULL, 0, NULL))
+        return false;
+    if(!command_and_check_result_str_fd(serial_get_SDM()->master.fd, ":LEAK:DELAY?", delay))
+        return false;
+
+    //start running the leak test
+    if(!serial_fd_do(serial_get_SDM()->master.fd, ":LEAK:RUN ON", NULL, 0, NULL))
+        return false;
+    if((!command_and_check_result_str_fd(serial_get_SDM()->master.fd, ":LEAK:RUN?", "DELAY"))&&(!command_and_check_result_str_fd(serial_get_SDM()->master.fd, ":LEAK:RUN?", "ON")))
+        return false;
+
+    //wait for the delay period
+    while(!command_and_check_result_str_fd(serial_get_SDM()->master.fd, ":LEAK:RUN?", "ON"))
+    {
+        sleep(5);
+    }
+
+    //start reading 
+    OUTPUT_PRINT("Beginning leak rate readings, updates every minute");    
+    uint64_t start = time_in_ms();
+    while((time_in_ms() - start) < 390000) //6.5 minutes
+    {
+        char ps_result[32];
+        char pt_result[32];
+        if(!serial_fd_do(serial_get_SDM()->master.fd, ":LEAK:PSRATE?", ps_result, sizeof(ps_result), NULL))
+            return false;
+
+        if(!serial_fd_do(serial_get_SDM()->master.fd, ":LEAK:PTRATE?", pt_result, sizeof(pt_result), NULL))
+            return false;
+        
+        double ps_rate_off, pt_rate_off;
+        int i;
+        char *rptr;
+        for(i = 0; ps_result[i] != ' '; i++) ;
+        rptr = &ps_result[i];
+        ps_rate_off = strtod(ps_result, &rptr);
+
+        for(i = 0; pt_result[i] != ' '; i++) ;
+        rptr = &pt_result[i];
+        pt_rate_off = strtod(pt_result, &rptr);
+        
+        OUTPUT_PRINT("LEAK RATE - PS: %f INHG PT: %f INHG", ps_rate_off, pt_rate_off);
+        if(fabs(ps_rate_off) > test->ps_tolerance)
+            OUTPUT_PRINT("PS LEAK RATE not within tolerance");
+        if(fabs(pt_rate_off) > test->pt_tolerance)
+            OUTPUT_PRINT("PT LEAK RATE not within tolerance");
+        sleep(60);
+    }
+
+    //stop leak testing
+    if(!serial_fd_do(serial_get_SDM()->master.fd, ":LEAK:RUN OFF", NULL, 0, NULL))
+        return false;
+    if(!command_and_check_result_str_fd(serial_get_SDM()->master.fd, ":LEAK:RUN?", "OFF"))
+        return false;
+
+    OUTPUT_PRINT("Leak test completed");
     return true;
 }
 

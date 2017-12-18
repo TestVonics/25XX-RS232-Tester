@@ -5,6 +5,7 @@
 #include "test.h"
 #include "serial.h"
 #include "command.h"
+#include "lsu.h"
 
 static inline bool lsu_check_valve_state(const char *valve, const char *expected_state)
 {
@@ -34,7 +35,7 @@ static inline bool lsu_check_POST()
 {        
     char cmd[32]; 
     snprintf(cmd, sizeof(cmd), "*TST?");
-    if(!command_and_check_result_str_fd(serial_get_SDM()->lsu.fd, cmd, "0"))
+    if(!command_and_check_result_str_fd(serial_get_SDM()->lsu.fd, cmd, "1"))
     {
          ERROR_PRINT("LSU POST failed");
          return false;
@@ -54,6 +55,16 @@ static inline bool lsu_check_num_valves()
     return true;
 }
 
+static inline bool lsu_run_selftest()
+{
+    if(!command_and_check_result_float_fd(serial_get_SDM()->lsu.fd, "TEST:SWIT:ACT?", 1))
+    {
+         ERROR_PRINT("SELF TEST FAILED");
+         return false;
+    }
+    return true;
+}
+
 static inline bool lsu_set_valve_state(const char *valve, const char *state)
 {
     char set_valve_state[32];
@@ -64,10 +75,10 @@ static inline bool lsu_set_valve_state(const char *valve, const char *state)
     return lsu_check_valve_state(valve, state);
 }
 
-bool lsu_valve_test(const struct LSUValveTest *lsu_valve_test)
+bool lsu_valve_test(const LSUValveTest *lsu_valve_test)
 {
-    if(!serial_fd_do(serial_get_SDM()->lsu.fd, "*CLS", NULL, 0, NULL))
-        return false;
+    //if(!serial_fd_do(serial_get_SDM()->lsu.fd, "*CLS", NULL, 0, NULL))
+    //    return false;
 
     //If valve_number is ALL, check values pertaining to all valves
     if(strncmp("ALL", lsu_valve_test->valve_number, strlen("ALL")+1) == 0)
@@ -78,7 +89,9 @@ bool lsu_valve_test(const struct LSUValveTest *lsu_valve_test)
         if(!lsu_check_num_valves())
             return false;
         
-        lsu_set_valve_state("1", "CLOSE");
+        if(!lsu_run_selftest())
+            return false;
+
         /* 
         //open all the valves
         if(!serial_do("OUTP:ALL OPEN", NULL, 0, NULL))

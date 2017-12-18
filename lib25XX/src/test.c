@@ -13,13 +13,13 @@
 #include "command.h"
 #include "lsu.h"
 
-
 typedef _TEST TEST;
 typedef bool (*test_func)(const TEST *test);
 typedef enum TEST_T{
     TEST_T_CTRL,
     TEST_T_MEAS,
     TEST_T_LSUV,
+    TEST_T_LEAK
 } TEST_T;
 
 #define _TEST_SET struct { \
@@ -196,17 +196,62 @@ static LSUValveTestSet LSUValveTests = {
       }, "8"
     },
 }};
-#define NUM_LSUV_TESTS LENGTH_2D(LSUValveTests.tests)
+#define NUM_LSUV_TESTS 0//LENGTH_2D(LSUValveTests.tests)
+
+
+typedef struct LeakTestSet {
+    _TEST_SET;
+    LeakTest tests[4];
+} LeakTestSet;
+
+LeakTestSet LeakTests = {
+{
+    TEST_T_LEAK,
+    (test_func)control_run_leak_test,
+    "ADTS Leak Test",
+    true    
+}, {
+    {{ 
+      {  "Low Pressure Leak Test with CACD",
+         "Connect CACD with LSU",
+         NULL,         
+      }, CTRL_UNITS_INHG, 200000, "3.425", "40", "3.425", "40"
+    }, 0.010, 0.010, "2", "0"
+    },
+    {{ 
+      {  "High Pressure Leak Test with CACD",
+         "Connect CACD with LSU",
+         NULL,         
+      }, CTRL_UNITS_INHG, 200000, "3.425", "40", "73.500", "40"
+    }, 0.010, 0.020, "2", "0"
+    },
+    {{ 
+      {  "Low Pressure Leak Test with PSA",
+         "Connect PSA with LSU",
+         NULL,         
+      }, CTRL_UNITS_INHG, 200000, "3.425", "40", "3.425", "40"
+    }, 0.010, 0.012, "2", "0"
+    },
+    {{ 
+      {  "High Pressure Leak Test with PSA",
+         "Connect PSA with LSU",
+         NULL,         
+      }, CTRL_UNITS_INHG, 200000, "3.425", "40", "73.500", "40"
+    }, 0.010, 0.025, "2", "0"
+    },
+}};
+#define NUM_LEAK_TESTS LENGTH_2D(LeakTests.tests)
 
 static TEST_SET *TestSets[] = 
 {
     (TEST_SET*)&ControlTests,
     (TEST_SET*)&SingleChannelTests,
     (TEST_SET*)&LSUValveTests,
+    (TEST_SET*)&LeakTests
 };
 #define NUM_TEST_SETS LENGTH_2D(TestSets)
 
-#define NUM_TESTS (NUM_CONTROL_TESTS + NUM_MEAS_TESTS + NUM_LSUV_TESTS)
+#define NUM_TESTS (NUM_CONTROL_TESTS + NUM_MEAS_TESTS + NUM_LSUV_TESTS + NUM_LEAK_TESTS)
 
 static inline int testset_get_num_tests(const TEST_SET *test_set)
 {
@@ -216,6 +261,8 @@ static inline int testset_get_num_tests(const TEST_SET *test_set)
         return NUM_MEAS_TESTS;
     else if(test_set->type == TEST_T_LSUV)
         return NUM_LSUV_TESTS;
+    else if(test_set->type == TEST_T_LEAK)
+        return NUM_LEAK_TESTS;
     else return -1;
 }
 
@@ -227,6 +274,8 @@ static inline TEST *testset_get_test(const TEST_SET *test_set, const uint index)
         return (TEST*)&(((SingleChannelTestSet*)test_set)->tests[index]);
     else if(test_set->type == TEST_T_LSUV)
         return (TEST*)&(((LSUValveTestSet*)test_set)->tests[index]);
+    else if(test_set->type == TEST_T_LEAK)
+        return (TEST*)&(((LeakTestSet*)test_set)->tests[index]);
     else return NULL;
 }
 
