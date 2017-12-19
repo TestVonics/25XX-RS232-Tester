@@ -56,13 +56,13 @@ static ControlTestSet ControlTests = {
       {  "Control Pressure - Aeronautical Units No Volume",
          strRemoveVolumes,
          NULL,         
-      }, CTRL_UNITS_FK, 160000, "-2000", "50000", "1000", "800"
+      }, CTRL_UNITS_FK, 120000, "-2000", "50000", "1000", "800"
     },
     {
       {  "Control Pressure - Aeronautical Units 60 Cubic Inch Volume",
          strConnect60,
          NULL,         
-      }, CTRL_UNITS_FK, 240000, "-2000", "25000", "1000", "400"
+      }, CTRL_UNITS_FK, 200000, "-2000", "25000", "1000", "400"
     },
     {
       {  "Control Pressure - Aeronautical Units 100 Cubic Inch Volume",
@@ -92,13 +92,13 @@ static ControlTestSet ControlTests = {
       {  "Control Vacuum - INHG Pressure Units 60 Cubic Inch Volume",
          strConnect60,
          NULL,        
-      }, CTRL_UNITS_INHG, 360000, "0.465", "40.000", "0.465", "40.000"
+      }, CTRL_UNITS_INHG, 80000, "0.465", "40.000", "0.465", "40.000"
     },
     {
       {  "Control Pressure - INHG Pressure Units 60 Cubic Inch Volume",
          strConnect60,
          NULL,         
-      }, CTRL_UNITS_INHG, 360000, "32.148", "40.000", "73.545", "50.000"
+      }, CTRL_UNITS_INHG, 120000, "32.148", "40.000", "73.545", "50.000"
     },
 }};
 #define NUM_CONTROL_TESTS 0 //LENGTH_2D(ControlTests.tests)
@@ -213,28 +213,28 @@ LeakTestSet LeakTests = {
 }, {
     {{ 
       {  "Low Pressure Leak Test with CACD",
-         "Connect CACD with LSU",
+         "Connect CACD or volume to LSU straight-through",
          NULL,         
       }, CTRL_UNITS_INHG, 200000, "3.425", "40", "3.425", "40"
     }, 0.010, 0.010, "2", "0"
     },
     {{ 
       {  "High Pressure Leak Test with CACD",
-         "Connect CACD with LSU",
+         "Connect CACD or volume with LSU straight-through",
          NULL,         
       }, CTRL_UNITS_INHG, 200000, "3.425", "40", "73.500", "40"
     }, 0.010, 0.020, "2", "0"
     },
     {{ 
       {  "Low Pressure Leak Test with PSA",
-         "Connect PSA with LSU",
+         "Connect PSA or volume to LSU, turn on the valves in use on the LSU",
          NULL,         
       }, CTRL_UNITS_INHG, 200000, "3.425", "40", "3.425", "40"
     }, 0.010, 0.012, "2", "0"
     },
     {{ 
       {  "High Pressure Leak Test with PSA",
-         "Connect PSA with LSU",
+         "Connect PSA or volume to LSU, turn on the valves in use on the LSU",
          NULL,         
       }, CTRL_UNITS_INHG, 200000, "3.425", "40", "73.500", "40"
     }, 0.010, 0.025, "2", "0"
@@ -280,8 +280,9 @@ static inline TEST *testset_get_test(const TEST_SET *test_set, const uint index)
 }
 
 //Run all the tests, pass in a callback of your waiting function
-void test_run_all(wait_func waitfunc)
+void test_run_all(UserFunc *user_func)
 {   
+    const wait_func waitfunc = user_func->waitfunc;
     //Run the test sets
     uint passed_cnt = 0;      
     uint current_test = 0;
@@ -289,6 +290,13 @@ void test_run_all(wait_func waitfunc)
     {
         //Setup the test set
         OUTPUT_PRINT("\nEntering test set: %s (%u/%u)", TestSets[i]->name, i+1,NUM_TEST_SETS); 
+        if(!user_func->yes_no())
+        {
+            OUTPUT_PRINT("No - OK, skipping test set: %s (%u/%u)", TestSets[i]->name, i+1,NUM_TEST_SETS); 
+            continue;
+        }
+        else
+            OUTPUT_PRINT("Yes");
         uint test_set_passed_cnt = 0;
         int num_tests = testset_get_num_tests(TestSets[i]);
 

@@ -113,7 +113,7 @@ SCPIDeviceManager *serial_get_SDM()
 bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slave_sn)
 {   
     #ifdef LOG_SERIAL
-        int serial_com_log = open("com.log", O_WRONLY | O_APPEND);
+        int serial_com_log = open("com.log", O_WRONLY | O_APPEND | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
         if((serial_com_log == -1)||((FDM_SER_LOG = FDM_register_fd(serial_com_log)) == FDM_INVALID))
             return false;        
     #endif 
@@ -197,6 +197,7 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
     }
     else
     {
+        ERROR_PRINT("Error, No serial devices found");
         bRet = false;
     }
     globfree(&glob_results); 

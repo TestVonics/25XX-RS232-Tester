@@ -73,7 +73,8 @@ int main(int argc, char **argv)
     set_terminal_mode();
     #endif
 
-    test_run_all(&wait_for_user);
+    UserFunc user_func = {&wait_for_user, &yes_no};
+    test_run_all(&user_func);
 
     lib_close(&sdm);
 

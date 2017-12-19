@@ -17,6 +17,7 @@ static bool control_set_units(const CTRL_UNITS units, const char **ps_units, con
 static bool control_setup(const CTRL_OP op, const char *ps_units, const char *pt_units, const char *ps, const char *ps_rate, const char *pt, const char *pt_rate);
 static bool measure_setup(const ADTS *adts, const CTRL_OP op);
 static bool leak_test_set_tolerances(const ADTS *adts, const char *set_cmd, const char *query_cmd, const double tolerance);
+static bool measure_rate(const ADTS *adts, const CTRL_OP op, double *rate);
 
 bool control_set_units(const CTRL_UNITS units, const char **ps_units, const char **pt_units, const char **ps_rate_units_part, const char **pt_rate_units_part)
 {
@@ -75,9 +76,18 @@ bool control_run_test(const ControlTest *test)
     return true;
 }
 
-static void measure_ps_test1()
+static bool measure_ps_test1(bool *within_range)
 {
-    measure_rate(&serial_get_SDM()->slave, CTRL_OP_PS, "", 0, 0);
+    double result;
+    static const double expected = 50000;
+    static const double error = 0.06 * 50000;
+    if(!measure_rate(&serial_get_SDM()->slave, CTRL_OP_PS, &result))
+        return false;
+
+    if(fabs(expected - result) <= error)
+        *within_range = true;
+
+    return true;
 }
 
 bool control_single_channel_test(const SingleChannelTest *test)
@@ -280,6 +290,7 @@ bool control(uint64_t exp_time, const char *ps_units, const char *pt_units, OPR 
         start_func();   
     uint64_t start = time_in_ms();
     STATUS st;
+    bool achieved = false;
     //While we are not stable, check every 5 seconds    
     for(;;)
     {
@@ -302,9 +313,16 @@ bool control(uint64_t exp_time, const char *ps_units, const char *pt_units, OPR 
         } 
 
         if(cycle_func != NULL)
-            cycle_func();   
+            if(!cycle_func(&achieved))
+                return false;   
                
         sleep(5);
+    }
+
+    if((cycle_func != NULL) && (!achieved))
+    {
+        OUTPUT_PRINT("Failure, was not close enough to expected value");
+        return false;
     }
 
     return true;
@@ -348,12 +366,14 @@ bool measure_setup(const ADTS *adts, const CTRL_OP op)
     return true;
 }
 
-bool measure_rate(const ADTS *adts, const CTRL_OP op, const char *units,  const double expected_rate, const double max_difference)
+bool measure_rate(const ADTS *adts, const CTRL_OP op, double *rate)
 {
     //read the rate of climb    
     char buf[256];
     if(!serial_fd_do(adts->fd, ":MEAS:CLIMB:RATE? FPM", buf, sizeof(buf), NULL))
         return false;
+
+   *rate = strtod(buf, NULL);
 
     return true;
 }
@@ -407,9 +427,15 @@ bool control_run_leak_test(const LeakTest *test)
         sleep(5);
     }
 
+
     //start reading 
     OUTPUT_PRINT("Beginning leak rate readings, updates every minute");    
     uint64_t start = time_in_ms();
+    int ps_out = 0;
+    int pt_out = 0;
+    int ps_out_max = 2;
+    int pt_out_max = 2;
+    bool bRet = true;
     while((time_in_ms() - start) < 390000) //6.5 minutes
     {
         char ps_result[32];
@@ -433,9 +459,21 @@ bool control_run_leak_test(const LeakTest *test)
         
         OUTPUT_PRINT("LEAK RATE - PS: %f INHG PT: %f INHG", ps_rate_off, pt_rate_off);
         if(fabs(ps_rate_off) > test->ps_tolerance)
+        {
             OUTPUT_PRINT("PS LEAK RATE not within tolerance");
+            ++ps_out;
+        }
         if(fabs(pt_rate_off) > test->pt_tolerance)
+        {
             OUTPUT_PRINT("PT LEAK RATE not within tolerance");
+            ++pt_out;
+        }
+       
+        if((ps_out > ps_out_max)||(pt_out > pt_out_max))
+        {
+            bRet = false;
+            break;
+        }   
         sleep(60);
     }
 
@@ -445,8 +483,8 @@ bool control_run_leak_test(const LeakTest *test)
     if(!command_and_check_result_str_fd(serial_get_SDM()->master.fd, ":LEAK:RUN?", "OFF"))
         return false;
 
-    OUTPUT_PRINT("Leak test completed");
-    return true;
+    //OUTPUT_PRINT("Leak test completed");
+    return bRet;
 }
 
 
