@@ -123,8 +123,19 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
     sdm->lsu.fd = -1;
     bool bRet = true;
     glob_t glob_results;
+    
+    #if (SERIAL_MODE == SERIAL_DEVICE_USB)
+        const char *globstring = "/dev/ttyUSB*";
+    #elif (SERIAL_MODE == SERIAL_DEVICE_COM)
+        const char *globstring = "/dev/ttyS*";
+    #elif (SERIAL_MODE == SERIAL_DEVICE_ETHERNET)
+        OUTPUT_PRINT("WARNING: Ethernet device not implemented, loading from /dev/ttyS*");
+        const char *globstring = "/dev/ttyS*";
+    #else
+        #error "UNKNOWN SERIAL MODE"
+    #endif
 
-    if(glob("/dev/ttyUSB*", 0, NULL, &glob_results) == 0)
+    if(glob(globstring, 0, NULL, &glob_results) == 0)
     {
         int fd;
         for(uint i = 0; i < glob_results.gl_pathc; i++)
@@ -204,6 +215,10 @@ void update_last_time()
 int serial_try_read(const int fd, char *buf, const size_t bufsize)
 {
     int n;
+    #ifdef DELAY_BEFORE_SERIAL_READ
+        struct timespec ts;
+        SLEEP_MS(&ts, 300);
+    #endif 
     if((n = read(fd, buf, bufsize)) > 0)
     {
         update_last_time();

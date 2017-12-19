@@ -33,3 +33,27 @@ bool serial_fd_do(int fd, const char *cmd, void *result, size_t result_size, int
 bool serial_do(const char *cmd, void *result, size_t result_size, int *num_result_read);
 bool serial_integer_cmd(const char *cmd, int *result);
 void serial_close(SCPIDeviceManager *sdm);
+
+typedef enum {
+    SERIAL_DEVICE_USB      = 1 << 0,
+    SERIAL_DEVICE_COM      = 1 << 1,
+    SERIAL_DEVICE_ETHERNET = 1 << 2  //NOT TESTED OR IMPLEMENTED ON LINUX YET
+} SERIAL_DEVICE;
+
+
+/* To CYGWIN, all difference modes of serial appear as a COM port /dev/S* */
+#define SERIAL_MODE_COM SERIAL_DEVICE_COM
+#ifdef __CYGWIN__
+    #define SERIAL_MODE_USB      SERIAL_DEVICE_COM
+    #define SERIAL_MODE_ETHERNET SERIAL_DEVICE_COM
+    #define DELAY_BEFORE_SERIAL_READ 300
+#else
+    #define SERIAL_MODE_USB SERIAL_DEVICE_USB
+    #define SERIAL_MODE_ETHERNET SERIAL_DEVICE_ETHERNET
+#endif 
+
+
+
+/* Set your desired serial device when compiling here */
+#define SERIAL_MODE SERIAL_MODE_USB
+
