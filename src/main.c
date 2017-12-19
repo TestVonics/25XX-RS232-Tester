@@ -78,7 +78,7 @@ int main(int argc, char **argv)
     lib_close(&sdm);
 
     #ifdef NO_RESET_ATEXIT
-    reset_terminal_mode()
+    reset_terminal_mode();
     #endif 
     
     return 0;
