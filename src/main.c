@@ -23,10 +23,6 @@ typedef uint32_t uint32;
 void set_terminal_mode();
 void reset_terminal_mode();
 
-#ifdef __CYGWIN__
-    #define BLOCKING_KEYPRESS
-#endif
-
 //my prototypes
 void wait_for_user();
 int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize);
@@ -69,9 +65,9 @@ int main(int argc, char **argv)
         return 1;
     }    
 
-    //#ifndef BLOCKING_KEYPRESS
+    #ifndef BLOCKING_KEYPRESS
     set_terminal_mode();
-    //#endif
+    #endif
 
     test_run_all(&wait_for_user);
 
@@ -139,8 +135,9 @@ void set_terminal_mode()
     memcpy(&new_termios, &orig_termios, sizeof(new_termios));
 
     /* register cleanup handler, and set the new terminal mode */
+    #ifndef DONT_CLEANUP_TERMINAL
     atexit(reset_terminal_mode);
-
+    #endif
     new_termios.c_lflag &= ~ICANON;
     new_termios.c_lflag &= ~ECHO;
     new_termios.c_lflag &= ~ISIG;
