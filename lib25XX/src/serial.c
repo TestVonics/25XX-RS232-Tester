@@ -217,7 +217,7 @@ int serial_try_read(const int fd, char *buf, const size_t bufsize)
     int n;
     #ifdef DELAY_BEFORE_SERIAL_READ
         struct timespec ts;
-        SLEEP_MS(&ts, 300);
+        SLEEP_MS(&ts, DELAY_BEFORE_SERIAL_READ);
     #endif 
     if((n = read(fd, buf, bufsize)) > 0)
     {
@@ -227,9 +227,13 @@ int serial_try_read(const int fd, char *buf, const size_t bufsize)
         
         char stuff[256];
         ssize_t z;     
-        if((z = read(fd, stuff, sizeof(stuff))) >= SERIAL_MIN_READ)
+        if((z = read(fd, stuff, sizeof(stuff))) > 0)
             debug_serial("WHY is there DATA: (%ld) %s", z, stuff);
     }
+    #ifdef IGNORE_1BYTE_READ
+    if(n == 1)
+        n = 0;
+    #endif
     return n;
 }
 
