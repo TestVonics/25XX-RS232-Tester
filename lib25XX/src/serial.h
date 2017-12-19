@@ -45,9 +45,11 @@ void serial_close(SCPIDeviceManager *sdm);
     #define SERIAL_MODE_USB      SERIAL_DEVICE_COM
     #define SERIAL_MODE_ETHERNET SERIAL_DEVICE_COM
     #define DELAY_BEFORE_SERIAL_READ 600
+    #define SERIAL_MIN_READ 2
 #else
     #define SERIAL_MODE_USB SERIAL_DEVICE_USB
     #define SERIAL_MODE_ETHERNET SERIAL_DEVICE_ETHERNET
+    #define SERIAL_MIN_READ 1
 #endif 
 
 

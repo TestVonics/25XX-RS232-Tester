@@ -227,7 +227,7 @@ int serial_try_read(const int fd, char *buf, const size_t bufsize)
         
         char stuff[256];
         ssize_t z;     
-        if((z = read(fd, stuff, sizeof(stuff))) > 0)
+        if((z = read(fd, stuff, sizeof(stuff))) >= SERIAL_MIN_READ)
             debug_serial("WHY is there DATA: (%ld) %s", z, stuff);
     }
     return n;
