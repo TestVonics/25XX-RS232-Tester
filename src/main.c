@@ -15,6 +15,10 @@
 #include "test.h"
 #include "serial.h"
 
+#ifdef __CYGWIN__
+#define NO_RESET_ATEXIT
+#endif
+
 typedef uint8_t byte;
 typedef uint64_t uint64;
 typedef uint32_t uint32;
@@ -72,6 +76,10 @@ int main(int argc, char **argv)
     test_run_all(&wait_for_user);
 
     lib_close(&sdm);
+
+    #ifdef NO_RESET_ATEXIT
+    reset_terminal_mode()
+    #endif 
     
     return 0;
 }
@@ -135,7 +143,7 @@ void set_terminal_mode()
     memcpy(&new_termios, &orig_termios, sizeof(new_termios));
 
     /* register cleanup handler, and set the new terminal mode */
-    #ifndef DONT_CLEANUP_TERMINAL
+    #ifndef NO_RESET_ATEXIT
     atexit(reset_terminal_mode);
     #endif
     new_termios.c_lflag &= ~ICANON;
