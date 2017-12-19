@@ -26,7 +26,7 @@ typedef enum TEST_T{
     const TEST_T type; \
     test_func test_func; \
     const char *name; \
-    const bool master_gtg_before_each_test; \
+    const bool init_master_before_each_test; \
 }
 typedef _TEST_SET TEST_SET;
 static inline int testset_get_num_tests(const TEST_SET *test_set);
@@ -196,7 +196,7 @@ static LSUValveTestSet LSUValveTests = {
       }, "8"
     },
 }};
-#define NUM_LSUV_TESTS 0//LENGTH_2D(LSUValveTests.tests)
+#define NUM_LSUV_TESTS LENGTH_2D(LSUValveTests.tests)
 
 
 typedef struct LeakTestSet {
@@ -240,7 +240,7 @@ LeakTestSet LeakTests = {
     }, 0.010, 0.025, "2", "0"
     },
 }};
-#define NUM_LEAK_TESTS LENGTH_2D(LeakTests.tests)
+#define NUM_LEAK_TESTS 0//LENGTH_2D(LeakTests.tests)
 
 static TEST_SET *TestSets[] = 
 {
@@ -296,15 +296,15 @@ void test_run_all(wait_func waitfunc)
         for(uint j = 0; (int)j < num_tests; j++)
         {    
             //if the tests involve the master, we will GTG before each test
-            if(TestSets[i]->master_gtg_before_each_test)
+            if(TestSets[i]->init_master_before_each_test)
             {                
                 OUTPUT_PRINT("Test setup - Controlling to ground");
                 command_GTG_eventually();
-            }
-
-            //get rid of leftovers
-            if(!serial_do("*CLS", NULL, 0, NULL))
-                return;    
+                
+                //get rid of leftovers
+                if(!serial_do("*CLS", NULL, 0, NULL))
+                    return; 
+            }               
 
             TEST *test;
             assert((test = testset_get_test(TestSets[i], j)) != NULL); 

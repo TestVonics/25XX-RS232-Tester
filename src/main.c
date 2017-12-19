@@ -75,6 +75,9 @@ int main(int argc, char **argv)
 
 bool yes_no()
 {
+    //dump buffered keypresses
+    while(getchar() != EOF){}
+
     printf("(Y)es or (N)o? ");
     fflush(stdout);
     int c;
@@ -91,6 +94,9 @@ bool yes_no()
 
 void wait_for_user()
 {
+    //dump buffered keypressed
+    while(getchar() != EOF){}
+
     printf("Press any key to continue\n");
     while(getchar() == EOF){}
 }

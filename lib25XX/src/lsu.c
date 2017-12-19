@@ -77,8 +77,8 @@ static inline bool lsu_set_valve_state(const char *valve, const char *state)
 
 bool lsu_valve_test(const LSUValveTest *lsu_valve_test)
 {
-    //if(!serial_fd_do(serial_get_SDM()->lsu.fd, "*CLS", NULL, 0, NULL))
-    //    return false;
+    if(!serial_fd_do(serial_get_SDM()->lsu.fd, "*CLS", NULL, 0, NULL))
+        return false;
 
     //If valve_number is ALL, check values pertaining to all valves
     if(strncmp("ALL", lsu_valve_test->valve_number, strlen("ALL")+1) == 0)
@@ -91,16 +91,15 @@ bool lsu_valve_test(const LSUValveTest *lsu_valve_test)
         
         if(!lsu_run_selftest())
             return false;
-
-        /* 
+        
         //open all the valves
-        if(!serial_do("OUTP:ALL OPEN", NULL, 0, NULL))
+        if(!serial_fd_do(serial_get_SDM()->lsu.fd, "OUTP:ALL OPEN", NULL, 0, NULL))
             return false;
-
+        
         //close all the valves
-        if(!serial_do("OUTP:ALL CLOSE", NULL, 0, NULL))
+        if(!serial_fd_do(serial_get_SDM()->lsu.fd, "OUTP:ALL CLOSE", NULL, 0, NULL))
             return false;
-        */
+        
         
         return true;
     }
@@ -136,8 +135,7 @@ bool lsu_valve_test(const LSUValveTest *lsu_valve_test)
         return false;
 
     //Confirm it actually opened
-    OUTPUT_PRINT("Is the indicator light for valve %s turned on? ", lsu_valve_test->valve_number);
-    //if(!lsu_valve_test->yes_no())
+    OUTPUT_PRINT("Is the indicator light for valve %s turned on? ", lsu_valve_test->valve_number);    
     if(!Yes_No())
     {
         OUTPUT_PRINT("No");
@@ -156,8 +154,7 @@ bool lsu_valve_test(const LSUValveTest *lsu_valve_test)
         return false;
 
     //Confirm it actually closed
-    OUTPUT_PRINT("Is the indicator light for valve %s turned off? ", lsu_valve_test->valve_number);
-    //if(lsu_valve_test->yes_no())
+    OUTPUT_PRINT("Is the indicator light for valve %s turned off? ", lsu_valve_test->valve_number);    
     if(!Yes_No())
     {
         OUTPUT_PRINT("No");
