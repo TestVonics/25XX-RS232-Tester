@@ -23,6 +23,10 @@ typedef uint32_t uint32;
 void set_terminal_mode();
 void reset_terminal_mode();
 
+#ifdef __CYGWIN__
+    #define BLOCKING_KEYPRESS
+#endif
+
 //my prototypes
 void wait_for_user();
 int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize);
@@ -65,7 +69,10 @@ int main(int argc, char **argv)
         return 1;
     }    
 
+    #ifndef BLOCKING_KEYPRESS
     set_terminal_mode();
+    #endif
+
     test_run_all(&wait_for_user);
 
     lib_close(&sdm);
@@ -76,7 +83,9 @@ int main(int argc, char **argv)
 bool yes_no()
 {
     //dump buffered keypresses
+    #ifndef BLOCKING_KEYPRESS
     while(getchar() != EOF){}
+    #endif
 
     printf("(Y)es or (N)o? ");
     fflush(stdout);
@@ -95,7 +104,9 @@ bool yes_no()
 void wait_for_user()
 {
     //dump buffered keypressed
+    #ifndef BLOCKING_KEYPRESS
     while(getchar() != EOF){}
+    #endif
 
     printf("Press any key to continue\n");
     while(getchar() == EOF){}
