@@ -124,11 +124,11 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
     bool bRet = true;
     glob_t glob_results;
     
-    #if (SERIAL_MODE == SERIAL_DEVICE_USB)
+    #if (SERIAL_MODE & SERIAL_DEVICE_USB)
         const char *globstring = "/dev/ttyUSB*";
-    #elif (SERIAL_MODE == SERIAL_DEVICE_COM)
+    #elif (SERIAL_MODE & SERIAL_DEVICE_COM)
         const char *globstring = "/dev/ttyS*";
-    #elif (SERIAL_MODE == SERIAL_DEVICE_ETHERNET)
+    #elif (SERIAL_MODE & SERIAL_DEVICE_ETHERNET)
         OUTPUT_PRINT("WARNING: Ethernet device not implemented, loading from /dev/ttyS*");
         const char *globstring = "/dev/ttyS*";
     #else
