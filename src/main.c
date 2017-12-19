@@ -69,9 +69,9 @@ int main(int argc, char **argv)
         return 1;
     }    
 
-    #ifndef BLOCKING_KEYPRESS
+    //#ifndef BLOCKING_KEYPRESS
     set_terminal_mode();
-    #endif
+    //#endif
 
     test_run_all(&wait_for_user);
 
@@ -81,9 +81,9 @@ int main(int argc, char **argv)
 }
 
 bool yes_no()
-{
-    //dump buffered keypresses
+{    
     #ifndef BLOCKING_KEYPRESS
+    //dump buffered keypresses
     while(getchar() != EOF){}
     #endif
 
