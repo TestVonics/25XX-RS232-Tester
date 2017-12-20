@@ -89,10 +89,10 @@ int main(int argc, char **argv)
 
 bool yes_no()
 {    
-    //#ifndef ENABLE_BASIC_INPUT
+    #ifndef ENABLE_BASIC_INPUT
     //dump buffered keypresses
     while(getchar() != EOF){SLEEP_MS_IF_DEFINED(300);}
-    //#endif
+    #endif
 
     printf("(Y)es or (N)o? ");
     fflush(stdout);
@@ -111,9 +111,9 @@ bool yes_no()
 void wait_for_user()
 {
     //dump buffered keypressed
-    //#ifndef ENABLE_BASIC_INPUT
+    #ifndef ENABLE_BASIC_INPUT
     while(getchar() != EOF){SLEEP_MS_IF_DEFINED(300);}
-    //#endif
+    #endif
 
     printf("Press any key to continue\n");
     while(getchar() == EOF){SLEEP_MS_IF_DEFINED(300);}
