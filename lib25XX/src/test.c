@@ -302,7 +302,11 @@ void test_run_all(UserFunc *user_func)
 
         //Run the test set tests
         for(uint j = 0; (int)j < num_tests; j++)
-        {    
+        {
+            TEST *test;
+            assert((test = testset_get_test(TestSets[i], j)) != NULL); 
+            OUTPUT_PRINT("Test set %s - Test #%u: %s", TestSets[i]->name, j+1, test->test_name);
+            
             //if the tests involve the master, we will GTG before each test
             if(TestSets[i]->init_master_before_each_test)
             {                
@@ -312,11 +316,8 @@ void test_run_all(UserFunc *user_func)
                 //get rid of leftovers
                 if(!serial_do("*CLS", NULL, 0, NULL))
                     return; 
-            }               
+            }   
 
-            TEST *test;
-            assert((test = testset_get_test(TestSets[i], j)) != NULL); 
-            OUTPUT_PRINT("Test set %s - Test #%u: %s", TestSets[i]->name, j+1, test->test_name);
             OUTPUT_PRINT("SETUP: %s", test->setup);
             if(test->user_task == NULL)
             {
