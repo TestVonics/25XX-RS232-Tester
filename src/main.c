@@ -17,6 +17,16 @@
 
 #ifdef __CYGWIN__
 #define NO_RESET_ATEXIT
+#define ENABLE_BASIC_INPUT
+#endif
+
+#ifdef ENABLE_BASIC_INPUT
+#define SLEEP_MS_IF_DEFINED(X) do {\
+struct timespec ts; \
+SLEEP_MS(&ts, X); \
+}while(0)
+#else
+#define SLEEP_MS_IF_DEFINED(X)
 #endif
 
 typedef uint8_t byte;
@@ -33,14 +43,6 @@ int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t 
 char *add_input(char *buf, size_t buflen);
 bool yes_no();
 
-/*
-#define CMACHINE(OP, PARAM1, PARAM2)
-#if (OP == "BUF")
-char buf[PARAM1]
-#elif (OP == "FUNC") 
-PARAM1
-#endif
-*/
 #ifdef SUPPLY_DBG_INPUT
     const char *get_master_id(){ return "231";}
     const char *get_slave_id(){  return "245";}
@@ -87,7 +89,7 @@ int main(int argc, char **argv)
 
 bool yes_no()
 {    
-    #ifndef BLOCKING_KEYPRESS
+    #ifndef ENABLE_BASIC_INPUT
     //dump buffered keypresses
     while(getchar() != EOF){}
     #endif
@@ -96,7 +98,7 @@ bool yes_no()
     fflush(stdout);
     int c;
     do {
-        while((c = getchar()) == EOF){}
+        while((c = getchar()) == EOF){SLEEP_MS_IF_DEFINED(300);}
         if(c == 'y')
             return true;
         else if( c == 'n')
@@ -109,12 +111,12 @@ bool yes_no()
 void wait_for_user()
 {
     //dump buffered keypressed
-    #ifndef BLOCKING_KEYPRESS
+    #ifndef ENABLE_BASIC_INPUT
     while(getchar() != EOF){}
     #endif
 
     printf("Press any key to continue\n");
-    while(getchar() == EOF){}
+    while(getchar() == EOF){SLEEP_MS_IF_DEFINED(300);}
 }
 
 int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize)
