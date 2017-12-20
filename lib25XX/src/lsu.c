@@ -37,7 +37,9 @@ static inline bool lsu_check_POST()
     snprintf(cmd, sizeof(cmd), "*TST?");
     if(!command_and_check_result_str_fd(serial_get_SDM()->lsu.fd, cmd, "1"))
     {
-         ERROR_PRINT("LSU POST failed");
+         char buf[256];
+         serial_fd_do(serial_get_SDM()->lsu.fd, "SYST:ERR?", buf, sizeof(buf), NULL);
+         ERROR_PRINT("LSU POST failed with: %s", buf);
          return false;
     }
     return true;
