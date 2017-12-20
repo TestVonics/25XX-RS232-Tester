@@ -101,7 +101,7 @@ static ControlTestSet ControlTests = {
       }, CTRL_UNITS_INHG, 120000, "32.148", "40.000", "73.545", "50.000"
     },
 }};
-#define NUM_CONTROL_TESTS 0 //LENGTH_2D(ControlTests.tests)
+#define NUM_CONTROL_TESTS LENGTH_2D(ControlTests.tests)
 
 typedef struct SingleChannelTestSet {
     _TEST_SET;
@@ -123,7 +123,7 @@ static SingleChannelTestSet SingleChannelTests = {
       }, CTRL_UNITS_FK, 160000, CTRL_OP_PS, {.ps = "80000"}, {.ps_rate = "50000"}
     },
 }};
-#define NUM_MEAS_TESTS 0//LENGTH_2D(SingleChannelTests.tests)
+#define NUM_MEAS_TESTS LENGTH_2D(SingleChannelTests.tests)
 
 typedef struct LSUValveTestSet {
     _TEST_SET;
@@ -240,14 +240,14 @@ LeakTestSet LeakTests = {
     }, 0.010, 0.025, "2", "0"
     },
 }};
-#define NUM_LEAK_TESTS 0//LENGTH_2D(LeakTests.tests)
+#define NUM_LEAK_TESTS LENGTH_2D(LeakTests.tests)
 
 static TEST_SET *TestSets[] = 
 {
     (TEST_SET*)&ControlTests,
+    (TEST_SET*)&LeakTests,
     (TEST_SET*)&SingleChannelTests,
-    (TEST_SET*)&LSUValveTests,
-    (TEST_SET*)&LeakTests
+    (TEST_SET*)&LSUValveTests,    
 };
 #define NUM_TEST_SETS LENGTH_2D(TestSets)
 
