@@ -1,7 +1,6 @@
 #pragma once
 #include <stdint.h>
 
-
 typedef enum SCPIType {
     SCPIType_ADTS = 1 << 0,
     SCPIType_LSU  = 1 << 1

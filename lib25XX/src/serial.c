@@ -135,6 +135,11 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
         #error "UNKNOWN SERIAL MODE"
     #endif
 
+    #ifdef DEBUG
+    OUTPUT_PRINT("ls /dev/");
+    system("ls /dev/");
+    #endif
+
     if(glob(globstring, 0, NULL, &glob_results) == 0)
     {
         int fd;
