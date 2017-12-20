@@ -41,9 +41,9 @@ typedef struct ControlTestSet{
     ControlTest tests[8]; 
 } ControlTestSet;
 
-#define strRemoveVolumes "Remove all volumes/loads"
-#define strConnect60     "Connect 60 cubic inch volume"
-#define strConnect100    "Connect 100 cubic inch volume"
+#define strRemoveVolumes "Remove all volumes/loads, cap all ports and close all valves on LSU"
+#define strConnect60     "Connect 60 cubic inch volume to both Ps and Pt"
+#define strConnect100    "Connect 100 cubic inch volume to both Ps and Pt."
 static ControlTestSet ControlTests = {
 {
     TEST_T_CTRL,
@@ -118,7 +118,7 @@ static SingleChannelTestSet SingleChannelTests = {
 {
     { 
       {  "Control Rate of Climb - Aeronautical Units",
-         "Connect the PS and the PT units from unit to another.",
+         "Connect the PS and the PT units from unit to another on the LSU",
          NULL,         
       }, CTRL_UNITS_FK, 160000, CTRL_OP_PS, {.ps = "80000"}, {.ps_rate = "50000"}
     },
@@ -303,10 +303,6 @@ void test_run_all(UserFunc *user_func)
         //Run the test set tests
         for(uint j = 0; (int)j < num_tests; j++)
         {
-            TEST *test;
-            assert((test = testset_get_test(TestSets[i], j)) != NULL); 
-            OUTPUT_PRINT("Test set %s - Test #%u: %s", TestSets[i]->name, j+1, test->test_name);
-            
             //if the tests involve the master, we will GTG before each test
             if(TestSets[i]->init_master_before_each_test)
             {                
@@ -316,7 +312,11 @@ void test_run_all(UserFunc *user_func)
                 //get rid of leftovers
                 if(!serial_do("*CLS", NULL, 0, NULL))
                     return; 
-            }   
+            }
+            
+            TEST *test;
+            assert((test = testset_get_test(TestSets[i], j)) != NULL); 
+            OUTPUT_PRINT("Test set %s - Test #%u: %s", TestSets[i]->name, j+1, test->test_name);            
 
             OUTPUT_PRINT("SETUP: %s", test->setup);
             if(test->user_task == NULL)

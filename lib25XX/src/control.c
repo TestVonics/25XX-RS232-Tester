@@ -431,13 +431,11 @@ bool control_run_leak_test(const LeakTest *test)
     //start reading 
     OUTPUT_PRINT("Beginning leak rate readings, updates every minute");    
     uint64_t start = time_in_ms();
-    int ps_out = 0;
-    int pt_out = 0;
-    int ps_out_max = 2;
-    int pt_out_max = 2;
-    bool bRet = true;
+    bool bRet = false;
     while((time_in_ms() - start) < 390000) //6.5 minutes
     {
+        sleep(60);
+
         char ps_result[32];
         char pt_result[32];
         if(!serial_fd_do(serial_get_SDM()->master.fd, ":LEAK:PSRATE?", ps_result, sizeof(ps_result), NULL))
@@ -458,23 +456,25 @@ bool control_run_leak_test(const LeakTest *test)
         pt_rate_off = strtod(pt_result, &rptr);
         
         OUTPUT_PRINT("LEAK RATE - PS: %f INHG PT: %f INHG", ps_rate_off, pt_rate_off);
+        bool ps_good = true;
         if(fabs(ps_rate_off) > test->ps_tolerance)
         {
             OUTPUT_PRINT("PS LEAK RATE not within tolerance");
-            ++ps_out;
-        }
-        if(fabs(pt_rate_off) > test->pt_tolerance)
-        {
-            OUTPUT_PRINT("PT LEAK RATE not within tolerance");
-            ++pt_out;
+            ps_good = false;
         }
        
-        if((ps_out > ps_out_max)||(pt_out > pt_out_max))
+        if(fabs(pt_rate_off) > test->pt_tolerance)
         {
-            bRet = false;
-            break;
-        }   
-        sleep(60);
+            OUTPUT_PRINT("PT LEAK RATE not within tolerance");            
+        }
+        else
+        {
+            if(ps_good) //if ps and pt are within tolerance, it passed the leak test
+            {
+                bRet = true;
+                break;
+            }
+        }        
     }
 
     //stop leak testing
