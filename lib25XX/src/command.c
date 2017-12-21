@@ -16,9 +16,9 @@ static_assert(sizeof(OPR) == sizeof(int), "opr isn't the same size as int");
 static_assert(sizeof(STB) == sizeof(int), "stb isn't the same size as int");
 static_assert(sizeof(ESB) == sizeof(int), "esb isn't the same size as int");
 
-static inline void command_get_integer(const char *text_cmd, ICommandResult *command);
+static inline void command_get_integer(const int fd, const char *text_cmd, ICommandResult *command);
 static inline void SetCommand_implement(SetCommand *instance, const char *cmd, const char *cmd_data, const char *cmd_verify, EXP_TYPE type);
-static inline bool command_gtg(void);
+static inline bool command_gtg(const int fd);
 
 void SetCommand_implement(SetCommand *instance, const char *cmd, const char *cmd_data, const char *cmd_verify, EXP_TYPE type)
 {
@@ -57,9 +57,9 @@ SetCommandFull *SetCommandFull_construct(SetCommandFull *instance, const EXP_TYP
         return NULL;
 } 
 
-void command_get_integer(const char *text_cmd, ICommandResult *command)
+void command_get_integer(const int fd, const char *text_cmd, ICommandResult *command)
 {
-    if(!serial_integer_cmd(text_cmd, &command->result))  
+    if(!serial_integer_cmd(fd, text_cmd, &command->result))  
         command->succeed = false;    
     else
         command->succeed = true;
@@ -112,105 +112,60 @@ bool command_check_sys_err()
 
 //Returns false if an eror occurs
 //otherwise 
-inline StatQuesEven command_StatQuesEven()
+inline StatQuesEven command_StatQuesEven(const int adts_fd)
 {
     StatQuesEven sqe;   
-    command_get_integer(":STAT:QUES:EVEN?", (ICommandResult*)&sqe);
+    command_get_integer(adts_fd, ":STAT:QUES:EVEN?", (ICommandResult*)&sqe);
     return sqe;
 }
 
-inline StatOperEven command_StatOperEven()
+inline StatOperEven command_StatOperEven(const int adts_fd)
 {
     StatOperEven soe;
-    command_get_integer(":STAT:OPER:EVEN?", (ICommandResult*)&soe);
+    command_get_integer(adts_fd, ":STAT:OPER:EVEN?", (ICommandResult*)&soe);
     return soe;
 }
 
-inline ESR command_ESR()
+inline ESR command_ESR(const int adts_fd)
 {
     ESR esr;
     
-    command_get_integer("*ESR?", (ICommandResult*)&esr);
+    command_get_integer(adts_fd, "*ESR?", (ICommandResult*)&esr);
     
     return esr;
 }
 
-inline STBCommand command_STB()
+inline STBCommand command_STB(const int adts_fd)
 {
     STBCommand stbc;
 
-    command_get_integer("*STB?", (ICommandResult*)&stbc);
+    command_get_integer(adts_fd, "*STB?", (ICommandResult*)&stbc);
 
     return  stbc;
   
 }
 
-/*
-bool command_check_and_handle_ERROR()
-{
-    char buf[256];
-    if(serial_read_or_timeout(buf, sizeof(buf), 500) > 0) 
-    {
-        if(strncmp(buf, "ERROR", strlen("ERROR")) == 0)
-        {
-            serial_write(":SYST:ERR?");  
-            serial_read_or_timeout(buf, sizeof(buf), 500);  
-            return true;  
-        }
-    }
-
-    return false;
-}
-*/
-
-bool command_gtg(void)
+bool command_gtg(const int fd)
 {       
-    serial_do(":SYST:MODE CTRL", NULL, 0, NULL);
-    serial_do(":CONT:MODE DUAL", NULL, 0, NULL);
-    serial_do(":CONT:EXEC", NULL, 0, NULL);    
-    serial_do(":CONT:GTGR", NULL, 0, NULL);     
+    serial_fd_do(fd, ":SYST:MODE CTRL", NULL, 0, NULL);
+    serial_fd_do(fd, ":CONT:MODE DUAL", NULL, 0, NULL);
+    serial_fd_do(fd, ":CONT:EXEC", NULL, 0, NULL);    
+    serial_fd_do(fd, ":CONT:GTGR", NULL, 0, NULL);     
     return true;
 }
 
-bool command_gtg_on_error(void)
+bool command_gtg_on_error(const int fd)
 {
-    serial_do(":CONT:EXEC", NULL, 0, NULL); 
-    serial_do(":CONT:GTGR", NULL, 0, NULL);    
-    serial_do("*CLS", NULL, 0, NULL);         
+    serial_fd_do(fd, ":CONT:EXEC", NULL, 0, NULL); 
+    serial_fd_do(fd, ":CONT:GTGR", NULL, 0, NULL);    
+    serial_fd_do(fd, "*CLS", NULL, 0, NULL);         
     return true;
 
 }
 
-bool command_GTG_eventually()
+bool command_GTG_eventually(const int fd)
 {   
-    /*
-    bool send = true;
-
-    STATUS st;
-    //if we are not idle, send GTG. If we have an error send it again
-    //while((st = status_check_event_registers()) != ST_IDLE_VENT)
-    do
-    {
-        status_dump_pressure_data_if_different("INHG", "INHG");
-        if(st == ST_ERR)
-            send = true;
-
-        if(send)
-        {
-            send = !send;
-            //Get it safely to ground and vented  
-            if(!serial_do(":CONT:GTGR", NULL, 0, NULL))
-            {                
-                command_force_gtg();
-            }
-        }
-        sleep(4);        
-    } while((st = status_check_event_registers(OPR_GTG)) != ST_AT_GOAL);
-    
-    return true;
-    */
-       
-    return control(0, "INHG", "INHG", OPR_GTG, command_gtg, command_gtg_on_error, NULL);
+    return control(0, "INHG", "INHG", OPR_GTG, command_gtg, command_gtg_on_error, NULL, fd);
 }
 
 /*

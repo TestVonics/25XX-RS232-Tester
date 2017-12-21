@@ -209,35 +209,35 @@ LeakTestSet LeakTests = {
     TEST_T_LEAK,
     (test_func)control_run_leak_test,
     "ADTS Leak Test",
-    true    
+    false    
 }, {
     {{ 
       {  "Low Pressure Leak Test with CACD",
          "Connect CACD or volume to LSU straight-through",
          NULL,         
       }, CTRL_UNITS_INHG, 200000, "3.425", "40", "3.425", "40"
-    }, 0.010, 0.010, "2", "0"
+    }, 0.010, 0.010, "2", "0", false
     },
     {{ 
       {  "High Pressure Leak Test with CACD",
          "Connect CACD or volume with LSU straight-through",
          NULL,         
       }, CTRL_UNITS_INHG, 200000, "3.425", "40", "73.500", "40"
-    }, 0.010, 0.020, "2", "0"
+    }, 0.010, 0.020, "2", "0", false
     },
     {{ 
       {  "Low Pressure Leak Test with PSA",
          "Connect PSA or volume to LSU, turn on the valves in use on the LSU",
          NULL,         
       }, CTRL_UNITS_INHG, 200000, "3.425", "40", "3.425", "40"
-    }, 0.010, 0.012, "2", "0"
+    }, 0.010, 0.012, "2", "0", true
     },
     {{ 
       {  "High Pressure Leak Test with PSA",
          "Connect PSA or volume to LSU, turn on the valves in use on the LSU",
          NULL,         
       }, CTRL_UNITS_INHG, 200000, "3.425", "40", "73.500", "40"
-    }, 0.010, 0.025, "2", "0"
+    }, 0.010, 0.025, "2", "0", true
     },
 }};
 #define NUM_LEAK_TESTS LENGTH_2D(LeakTests.tests)
@@ -286,6 +286,7 @@ void test_run_all(UserFunc *user_func)
     //Run the test sets
     uint passed_cnt = 0;      
     uint current_test = 0;
+    bool at_ground = false;
     for(uint i = 0; i < NUM_TEST_SETS; i++)
     {
         //Setup the test set
@@ -305,13 +306,17 @@ void test_run_all(UserFunc *user_func)
         {
             //if the tests involve the master, we will GTG before each test
             if(TestSets[i]->init_master_before_each_test)
-            {                
-                OUTPUT_PRINT("Test setup - Controlling to ground");
-                command_GTG_eventually();
-                
+            {        
+                if(!at_ground)
+                {        
+                    OUTPUT_PRINT("Test setup - Controlling to ground");
+                    command_GTG_eventually(serial_get_SDM()->master.fd);
+                }
+                at_ground = false;
+
                 //get rid of leftovers
-                if(!serial_do("*CLS", NULL, 0, NULL))
-                    return; 
+                if(!serial_fd_do(serial_get_SDM()->master.fd, "*CLS", NULL, 0, NULL))
+                    return;                
             }
             
             TEST *test;
@@ -339,15 +344,33 @@ void test_run_all(UserFunc *user_func)
             }
             ++current_test;
         }
+        
+
         OUTPUT_PRINT("\nTest set: %s complete, (%u/%u) tests PASSED", TestSets[i]->name, test_set_passed_cnt, (uint)num_tests); 
         passed_cnt += test_set_passed_cnt;
+
+                
+        //go to ground if the test set involved leaving ground
+        if(TestSets[i]->init_master_before_each_test)
+        {
+            OUTPUT_PRINT("Test set complete - Controlling to ground");
+            command_GTG_eventually(serial_get_SDM()->master.fd);
+            at_ground = true;
+        }
     }
 
     OUTPUT_PRINT("All test set tests: complete, (%u/%u) total tests PASSED", passed_cnt, NUM_TESTS); 
     
-    //control to ground, remote mode is no longer needed    
-    serial_do(":CONT:GTGR", NULL, 0, NULL);
-    OUTPUT_PRINT("Sent Control to ground command, Exiting");
-    serial_do(":SYST:REMOTE DISABLE", NULL, 0, NULL);   
+    //control to ground, remote mode is no longer needed
+    if(!at_ground)
+    {  
+        serial_fd_do(serial_get_SDM()->master.fd, ":CONT:GTGR", NULL, 0, NULL);
+        OUTPUT_PRINT("Sent Control to ground command, Exiting");
+    }
+    else
+        OUTPUT_PRINT("Exiting");
+
+    serial_fd_do(serial_get_SDM()->master.fd, ":SYST:REMOTE DISABLE", NULL, 0, NULL); 
+    serial_fd_do(serial_get_SDM()->slave.fd, ":SYST:REMOTE DISABLE", NULL, 0, NULL); 
 }
 

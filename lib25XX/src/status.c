@@ -16,22 +16,6 @@ typedef struct LastStatus {
     OPR opr;
 } LastStatus;
 
-/*
-bool status_is_idle()
-{    
-    if(status_check_event_registers() == ST_IDLE_VENT)
-    {
-        //if the registers are idle it should be safe to put in vent.
-        //serial_write(":SYST:MODE VENT");
-        if(!serial_do(":SYST:MODE VENT", NULL, 0, NULL))
-            return false;
-        if(command_and_check_result_str(":SYST:MODE?", "VENT"))
-             return true;      
-    }
-
-    return false;
-}
-*/
 #define CHECK_ERROR_BIT(INT, COND) \
 do { if(INT & COND) \
          ERROR_PRINT("Error: " #COND); } \
@@ -41,10 +25,10 @@ while(0)
 do { if(INT & COND) \
          OUTPUT_PRINT("OPR: " #COND); } \
 while(0)
-STATUS status_check_event_registers(const OPR opr_goal)
+STATUS status_check_event_registers(const OPR opr_goal, const int adts_fd)
 {
     static LastStatus lastStatus;
-    STBCommand stbc = command_STB();
+    STBCommand stbc = command_STB(adts_fd);
     STATUS status = ST_AT_GOAL;
     if(!stbc.succeed)
         return ST_ERR;
@@ -61,7 +45,7 @@ STATUS status_check_event_registers(const OPR opr_goal)
     StatQuesEven sqe = {{{0}}};
     if(stbc.stb & STB_QUE)
     {        
-        sqe = command_StatQuesEven();
+        sqe = command_StatQuesEven(adts_fd);
         if(!sqe.succeed || (sqe.que & QUE_ALL))
         {
             status = ST_ERR;
@@ -80,7 +64,7 @@ STATUS status_check_event_registers(const OPR opr_goal)
     ESR esr = {{{0}}};
     if(stbc.stb & STB_ESB)
     {        
-        esr = command_ESR();        
+        esr = command_ESR(adts_fd);        
         if(!esr.succeed || (esr.esb & ESB_ERR))
         {
             status = ST_ERR;
@@ -89,7 +73,7 @@ STATUS status_check_event_registers(const OPR opr_goal)
                 CHECK_ERROR_BIT(esr.esb, ESB_DDE);
                 CHECK_ERROR_BIT(esr.esb, ESB_EXE);
                 CHECK_ERROR_BIT(esr.esb, ESB_CME); 
-                serial_do(":SYST:ERR?", NULL, 0, NULL);
+                serial_fd_do(adts_fd, ":SYST:ERR?", NULL, 0, NULL);
             }            
         }
     }
@@ -97,7 +81,7 @@ STATUS status_check_event_registers(const OPR opr_goal)
     StatOperEven soe = {{{0}}};
     if(stbc.stb & STB_OPR)
     {        
-        soe = command_StatOperEven();         
+        soe = command_StatOperEven(adts_fd);         
         if(!soe.succeed) 
         {
             status = ST_ERR;
@@ -136,19 +120,19 @@ STATUS status_check_event_registers(const OPR opr_goal)
 }       
 
 
-void status_dump_pressure_data_if_different(const char *ps_units, const char *pt_units)
+void status_dump_pressure_data_if_different(const char *ps_units, const char *pt_units, const int adts_fd)
 {
     static char last_ps[12], last_pt[12];
     char ps[12], pt[12];
 
     char ps_cmd[16] = ":MEAS:PS? ";    
     strcpy(ps_cmd + 10, ps_units);   
-    if(!serial_do(ps_cmd, ps, LENGTH_2D(ps), NULL))
+    if(!serial_fd_do(adts_fd, ps_cmd, ps, LENGTH_2D(ps), NULL))
         return;
 
     char pt_cmd[16] = ":MEAS:PT? ";
     strcpy(pt_cmd + 10, pt_units);
-    if(!serial_do(pt_cmd, pt, LENGTH_2D(pt), NULL))
+    if(!serial_fd_do(adts_fd, pt_cmd, pt, LENGTH_2D(pt), NULL))
         return;    
     
     if((strcmp(ps, last_ps) != 0)|| (strcmp(pt, last_pt)!= 0))

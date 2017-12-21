@@ -159,18 +159,11 @@ typedef struct ESR {
 } ESR;
 
 
-StatOperEven command_StatOperEven();
-StatQuesEven command_StatQuesEven();
-ESR command_ESR();
-STBCommand command_STB();
+StatOperEven command_StatOperEven(const int adts_fd);
+StatQuesEven command_StatQuesEven(const int adts_fd);
+ESR command_ESR(const int adts_fd);
+STBCommand command_STB(const int adts_fd);
 
 bool command_and_check_result_str_fd(const int fd, const char *msg, const char *expected_result);
 bool command_and_check_result_float_fd(const int fd, const char *msg, double expected_result);
-#define command_and_check_result_str(msg, expected) command_and_check_result_str_fd(serial_get_SDM()->master.fd, msg, expected)
-#define command_and_check_result_float(msg, expected) command_and_check_result_float_fd(serial_get_SDM()->master.fd, msg, expected)
-//bool command_and_check_result_str(const char *msg, const char *expected_result);
-//bool command_and_check_result_float(const char *msg, const double expected_result);
-
-bool command_check_and_handle_ERROR();
-
-bool command_GTG_eventually();
+bool command_GTG_eventually(const int adts_fd);

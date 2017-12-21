@@ -251,10 +251,10 @@ int serial_read_or_timeout(const int fd, char *buf, const size_t bufsize, const 
     return n;
 }
 
-bool serial_integer_cmd(const char *cmd, int *result)
+bool serial_integer_cmd(const int fd, const char *cmd, int *result)
 {    
     char buf[256];
-    if(serial_do(cmd, buf, sizeof(buf), NULL))
+    if(serial_fd_do(fd, cmd, buf, sizeof(buf), NULL))
     {
          *result = atoi(buf);
           return true;
@@ -292,11 +292,6 @@ bool serial_write(const int fd, const char *str)
     buf[message_len-1] = '\0';
     log_serial("SEND|t=%llu|(%lu): %s", time_in_ms(), message_len, buf);
     return bRet;    
-}
-
-bool serial_do(const char *cmd, void *result, size_t result_size, int *num_result_read)
-{
-    return serial_fd_do(SDM.master.fd, cmd, result, result_size, num_result_read);
 }
 
 bool serial_fd_do(const int fd, const char *cmd, void *result, size_t result_size, int *num_result_read)
