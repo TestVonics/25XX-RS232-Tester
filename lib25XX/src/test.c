@@ -86,19 +86,19 @@ static ControlTestSet ControlTests = {
       {  "Control Vacuum - Aeronautical Units 100 Cubic Inch Volume",
          strConnect100,
          NULL,         
-      }, CTRL_UNITS_FK, 600000, "92000", "10000", "0", "200"
+      }, CTRL_UNITS_FK, 630000, "92000", "10000", "0", "200"
     },
     {
       {  "Control Vacuum - INHG Pressure Units 60 Cubic Inch Volume",
          strConnect60,
          NULL,        
-      }, CTRL_UNITS_INHG, 80000, "0.465", "40.000", "0.465", "40.000"
+      }, CTRL_UNITS_INHG, 107000, "0.465", "30.000", "0.465", "40.000"
     },
     {
       {  "Control Pressure - INHG Pressure Units 60 Cubic Inch Volume",
          strConnect60,
          NULL,         
-      }, CTRL_UNITS_INHG, 120000, "32.148", "40.000", "73.545", "50.000"
+      }, CTRL_UNITS_INHG, 160000, "32.148", "30.000", "73.545", "50.000"
     },
 }};
 #define NUM_CONTROL_TESTS LENGTH_2D(ControlTests.tests)
