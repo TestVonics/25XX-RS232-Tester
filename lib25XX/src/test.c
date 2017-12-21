@@ -86,7 +86,7 @@ static ControlTestSet ControlTests = {
       {  "Control Vacuum - Aeronautical Units 100 Cubic Inch Volume",
          strConnect100,
          NULL,         
-      }, CTRL_UNITS_FK, 630000, "92000", "10000", "0", "200"
+      }, CTRL_UNITS_FK, 645000, "92000", "10000", "0", "200"
     },
     {
       {  "Control Vacuum - INHG Pressure Units 60 Cubic Inch Volume",
