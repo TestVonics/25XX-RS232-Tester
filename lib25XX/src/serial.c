@@ -12,6 +12,7 @@
 #include <stdbool.h>
 #include <glob.h>
 #include <assert.h>
+#include <pthread.h>
 
 #include "utility.h"
 #include "serial.h"
@@ -55,6 +56,7 @@ static inline int serial_init_device(const char *path);
 static inline int serial_try_read(const int fd, char *buf, const size_t bufsize);
 static inline bool serial_write(const int fd, const char *str);
 static inline int serial_read_or_timeout(const int fd, char *buf, const size_t bufsize, const uint64_t timeout);
+static void *serial_check_device(void *_instance);
 
 int serial_init_device(const char *path)
 {
@@ -110,6 +112,83 @@ SCPIDeviceManager *serial_get_SDM()
     return &SDM;
 }
 
+typedef struct SDevGlobal{
+    SCPIDeviceManager *sdm;
+    const char *master_sn;
+    const char *slave_sn;
+} SDevGlobal;
+
+typedef struct SDevInstance{
+    const SDevGlobal *sDev;
+    const char *device;
+} SDevInstance;
+
+void *serial_check_device(void *_instance)
+{
+    SDevInstance *instance = (SDevInstance*)_instance;
+    SCPIDeviceManager *sdm = instance->sDev->sdm;
+    const char *master_sn = instance->sDev->master_sn;
+    const char *slave_sn = instance->sDev->slave_sn;
+    
+    bool bRet = true;
+    
+    debug_serial("glob | Device %s found", instance->device);
+    int fd = serial_init_device(instance->device);
+    if(fd == -1)
+    {                
+        error_serial("%s could not be initialized", instance->device);
+        return (void*)true;    
+    }
+    
+    
+    char buf[256];
+    if(!serial_fd_do(fd, "*IDN?", buf, sizeof(buf), 0))
+    {
+        debug_serial("*IDN? failed for device: %s", instance->device);
+    }
+    else
+    {
+        const char *device_name = "SCPI Unknown";
+        char sn[32];
+        if(parse_sn(sn, buf))
+        {
+            if(strncmp(sn, master_sn, strlen(master_sn)) == 0) 
+            {
+                sdm->master.fd = fd;
+                debug_serial("SCPI Master set to fd %d", fd); 
+                device_name = "SCPI Master";                       
+            }
+            else if(strncmp(sn, slave_sn, strlen(slave_sn)) == 0)
+            {
+                sdm->slave.fd = fd;
+                debug_serial("SCPI Slave set to fd %d", fd);
+                device_name = "SCPI Slave";
+            }
+            else
+            {
+                error_serial("SN %s not expected", sn);
+                bRet = false;
+            }
+        }
+        else if(strstr(buf, "LSU") != NULL)
+        {
+            sdm->lsu.fd = fd;
+            debug_serial("LSU set to fd %d", fd);
+            device_name = "SCPI LSU";
+        }
+        else
+        {
+            error_serial("Unknown SCPI device connected");
+            bRet = false;
+        }
+        OUTPUT_PRINT("%s: %s", device_name, buf);
+        serial_fd_do(fd, "*CLS", NULL, 0, NULL);        
+    }
+    
+    return (void*)bRet;
+
+}
+
 bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slave_sn)
 {   
     #ifdef LOG_SERIAL
@@ -142,63 +221,28 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
 
     if(glob(globstring, 0, NULL, &glob_results) == 0)
     {
-        int fd;
+        //check each possible device in parallel
+        SDevGlobal sdg;
+        sdg.sdm = sdm;
+        sdg.master_sn = master_sn;
+        sdg.slave_sn = slave_sn;
+        
+        SDevInstance sdi[glob_results.gl_pathc];
+        pthread_t threads[glob_results.gl_pathc];
         for(uint i = 0; i < glob_results.gl_pathc; i++)
         {
-            debug_serial("glob | Device %s found", glob_results.gl_pathv[i]);
-            fd = serial_init_device(glob_results.gl_pathv[i]);
-            if(fd == -1)
-            {                
-                error_serial("%s could not be initialized", glob_results.gl_pathv[i]);
-                //bRet = false;
-                continue;
-            }
-            
-            
-            char buf[256];
-            if(!serial_fd_do(fd, "*IDN?", buf, sizeof(buf), 0))
-            {
-                debug_serial("*IDN? failed for device: %s", glob_results.gl_pathv[i]);
-            }
-            else
-            {
-                const char *device_name = "SCPI Unknown";
-                char sn[32];
-                if(parse_sn(sn, buf))
-                {
-                    if(strncmp(sn, master_sn, strlen(master_sn)) == 0) 
-                    {
-                        sdm->master.fd = fd;
-                        debug_serial("SCPI Master set to fd %d", fd); 
-                        device_name = "SCPI Master";                       
-                    }
-                    else if(strncmp(sn, slave_sn, strlen(slave_sn)) == 0)
-                    {
-                        sdm->slave.fd = fd;
-                        debug_serial("SCPI Slave set to fd %d", fd);
-                        device_name = "SCPI Slave";
-                    }
-                    else
-                    {
-                        error_serial("SN %s not expected", sn);
-                        bRet = false;
-                    }
-                }
-                else if(strstr(buf, "LSU") != NULL)
-                {
-                    sdm->lsu.fd = fd;
-                    debug_serial("LSU set to fd %d", fd);
-                    device_name = "SCPI LSU";
-                }
-                else
-                {
-                    error_serial("Unknown SCPI device connected");
-                    bRet = false;
-                }
-                OUTPUT_PRINT("%s: %s", device_name, buf);
-                serial_fd_do(fd, "*CLS", NULL, 0, NULL);        
-            }
-        }        
+            sdi[i].sDev = &sdg;
+            sdi[i].device = glob_results.gl_pathv[i];
+            pthread_create(&threads[i], NULL, &serial_check_device, &sdi[i]);
+        }  
+        
+        for(uint i = 0; i < glob_results.gl_pathc; i++)
+        {
+            bool tempRet;
+            pthread_join(threads[i], (void**)&tempRet);
+            if(!tempRet)
+                bRet = false;
+        }    
     }
     else
     {
