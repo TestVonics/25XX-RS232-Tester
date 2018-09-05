@@ -38,7 +38,7 @@ void set_terminal_mode();
 void reset_terminal_mode();
 
 //my prototypes
-void wait_for_user();
+TEST_CHOICE my_tc();
 int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize);
 char *add_input(char *buf, size_t buflen);
 bool yes_no();
@@ -75,7 +75,7 @@ int main(int argc, char **argv)
     set_terminal_mode();
     #endif
 
-    UserFunc user_func = {&wait_for_user, &yes_no};
+    UserFunc user_func = {&my_tc, &yes_no};
     test_run_all(&user_func);
 
     lib_close(&sdm);
@@ -108,15 +108,30 @@ bool yes_no()
     }while(1);
 }
 
-void wait_for_user()
+TEST_CHOICE my_tc()
 {
     //dump buffered keypressed
     #ifndef ENABLE_BASIC_INPUT
     while(getchar() != EOF){SLEEP_MS_IF_DEFINED(300);}
     #endif
 
-    printf("Press any key to continue\n");
-    while(getchar() == EOF){SLEEP_MS_IF_DEFINED(300);}
+    printf("Press R to Run, P for Previous Test, S for Skip Test\n");
+    TEST_CHOICE tc = TC_UNKNOWN;
+    do {
+        char c;
+        while((c = getchar()) == EOF){SLEEP_MS_IF_DEFINED(300);}
+        if(c == 'r')
+        {
+            tc = TC_RUN;
+        }
+        else if(c == 'p') {
+            tc = TC_PREV;
+        }
+        else if(c == 's') {
+            tc = TC_SKIP;
+        }
+    } while(tc == TC_UNKNOWN);
+    return tc;
 }
 
 int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize)

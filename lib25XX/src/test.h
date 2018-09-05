@@ -1,11 +1,18 @@
 #pragma once
 #include <stdbool.h>
 
-typedef void(*wait_func)(void);
+typedef enum {
+    TC_UNKNOWN = 0,
+    TC_RUN = 1 << 0,
+    TC_PREV = 1 << 1,
+    TC_SKIP = 1 << 2
+} TEST_CHOICE;
+
+typedef TEST_CHOICE (*tc_choice)(void);
 typedef bool (*yes_or_no_func)();
 
 typedef struct UserFunc {
-    const wait_func waitfunc;
+    const tc_choice tc;
     const yes_or_no_func yes_no;
 } UserFunc;
 

@@ -282,7 +282,7 @@ static inline TEST *testset_get_test(const TEST_SET *test_set, const uint index)
 //Run all the tests, pass in a callback of your waiting function
 void test_run_all(UserFunc *user_func)
 {   
-    const wait_func waitfunc = user_func->waitfunc;
+    const tc_choice tc = user_func->tc;
     //Run the test sets
     uint passed_cnt = 0;      
     uint current_test = 0;
@@ -330,7 +330,8 @@ void test_run_all(UserFunc *user_func)
             }
       
             OUTPUT_PRINT("TASK: %s",test->user_task);
-            waitfunc();        
+            TEST_CHOICE tcvar = tc();
+            printf("tc is %u", tcvar);        
             
             //Finally run the test function
             if(TestSets[i]->test_func(test))
