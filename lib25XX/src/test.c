@@ -302,8 +302,9 @@ void test_run_all(UserFunc *user_func)
         int num_tests = testset_get_num_tests(TestSets[i]);
 
         //Run the test set tests
-        for(uint j = 0; (int)j < num_tests; j++)
+        for(int jsigned = 0; jsigned < num_tests; jsigned++)
         {
+            uint j = (uint)jsigned; //jsigned will never be signed here
             //if the tests involve the master, we will GTG before each test
             if(TestSets[i]->init_master_before_each_test)
             {        
@@ -331,19 +332,53 @@ void test_run_all(UserFunc *user_func)
       
             OUTPUT_PRINT("TASK: %s",test->user_task);
             TEST_CHOICE tcvar = tc();
-            printf("tc is %u", tcvar);        
-            
-            //Finally run the test function
-            if(TestSets[i]->test_func(test))
+            OUTPUT_PRINT("tc is %u", tcvar);
+
+            if(tcvar & TC_RUN)
             {
-                OUTPUT_PRINT("Test set %s - Test #%u PASSED\n", TestSets[i]->name, j+1);
-                test_set_passed_cnt++;                         
+                //Finally run the test function
+                if(TestSets[i]->test_func(test))
+                {
+                    OUTPUT_PRINT("Test set %s - Test #%u PASSED\n", TestSets[i]->name, j+1);
+                    test_set_passed_cnt++;                         
+                }
+                else
+                {
+                    ERROR_PRINT("Test set %s - Test #%u FAILED\n", TestSets[i]->name, j+1);                
+                }
+            }
+            else if(tcvar & TC_SKIP)
+            {
+                OUTPUT_PRINT("Skipping test %u", j+1);                
+            }
+            
+            if(tcvar & TC_PREV)
+            {                
+                if(current_test > 0)
+                {
+                    //can mess with test_set_passed_cnt, if a passed test is redone
+                    OUTPUT_PRINT("Going to previous test\n");
+                    current_test--;
+                    jsigned -= 2;
+                    //if the previous test is outside of this test set
+                    if(jsigned < -1)
+                    {
+                        //set to the last test of the last testset
+                        i--;
+                        test_set_passed_cnt = 0;
+                        num_tests = testset_get_num_tests(TestSets[i]);
+                        jsigned = num_tests - 1;                        
+                    } 
+                }
+                else
+                {
+                    OUTPUT_PRINT("Can't go back, on first test!\n");
+                }                
             }
             else
             {
-                ERROR_PRINT("Test set %s - Test #%u FAILED\n", TestSets[i]->name, j+1);                
-            }
-            ++current_test;
+                ++current_test;
+            }            
         }
         
 
