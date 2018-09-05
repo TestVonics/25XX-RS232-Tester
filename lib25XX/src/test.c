@@ -356,7 +356,7 @@ void test_run_all(UserFunc *user_func)
             {                
                 if(current_test > 0)
                 {
-                    //can mess with test_set_passed_cnt, if a passed test is redone
+                    //can mess with test_set_passed_cnt, if a passed test is redone or testsets are switched
                     OUTPUT_PRINT("Going to previous test\n");
                     current_test--;
                     jsigned -= 2;
