@@ -332,7 +332,7 @@ void test_run_all(UserFunc *user_func)
       
             OUTPUT_PRINT("TASK: %s",test->user_task);
             TEST_CHOICE tcvar = tc();
-            OUTPUT_PRINT("tc is %u", tcvar);
+            //OUTPUT_PRINT("tc is %u", tcvar);
 
             if(tcvar & TC_RUN)
             {

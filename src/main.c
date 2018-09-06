@@ -10,6 +10,7 @@
 #include <time.h>
 #include <math.h>
 #include <stdbool.h>
+#include <ctype.h>
 
 #include "utility.h"
 #include "test.h"
@@ -55,7 +56,7 @@ bool yes_no();
         static char NAME[SIZE]; \
         return add_input(NAME, sizeof(NAME)); \
     } 
-    make_inputbuf_func(get_master_id, master, 24, "Enter the SN of the master unit:"); \
+    make_inputbuf_func(get_master_id, master, 24, "Enter the SN of the master (bottom) unit:"); \
     make_inputbuf_func(get_slave_id, slave, 24, "Enter the SN of the slave unit:");
     make_inputbuf_func(get_tester_name, name, 64, "Enter your name:");
 #endif
@@ -99,6 +100,7 @@ bool yes_no()
     int c;
     do {
         while((c = getchar()) == EOF){SLEEP_MS_IF_DEFINED(300);}
+        c = tolower(c);
         if(c == 'y')
             return true;
         else if( c == 'n')
@@ -118,8 +120,9 @@ TEST_CHOICE my_tc()
     printf("Press R to Run, P for Previous Test, S for Skip Test\n");
     TEST_CHOICE tc = TC_UNKNOWN;
     do {
-        char c;
+        int c;
         while((c = getchar()) == EOF){SLEEP_MS_IF_DEFINED(300);}
+        c = tolower(c);
         if(c == 'r')
         {
             tc = TC_RUN;
