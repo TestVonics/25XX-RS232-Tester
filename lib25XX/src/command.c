@@ -165,6 +165,10 @@ bool command_gtg_on_error(const int fd)
 
 bool command_GTG_eventually(const int fd)
 {   
+    if(status_check_event_registers(OPR_GTG, fd) == ST_AT_GOAL)
+    {
+        return true;
+    }
     return control(0, "INHG", "INHG", OPR_GTG, command_gtg, command_gtg_on_error, NULL, fd);
 }
 
