@@ -403,6 +403,9 @@ bool control_run_leak_test(const LeakTest *test)
         adts = &(serial_get_SDM()->slave);
     }
 
+    //assert we are at ground
+    command_GTG_eventually(adts->fd);
+
     //get the unit controlling
     if(!control_run_test_full((const ControlTest*)test, adts->fd))
         return false;

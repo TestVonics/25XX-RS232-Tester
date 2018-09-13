@@ -149,7 +149,8 @@ bool command_gtg(const int fd)
 {       
     serial_fd_do(fd, ":SYST:MODE CTRL", NULL, 0, NULL);
     serial_fd_do(fd, ":CONT:MODE DUAL", NULL, 0, NULL);
-    serial_fd_do(fd, ":CONT:EXEC", NULL, 0, NULL);    
+    serial_fd_do(fd, ":CONT:EXEC", NULL, 0, NULL);
+    sleep(1); // 9-13-18 attempt to fix this working intermittently 
     serial_fd_do(fd, ":CONT:GTGR", NULL, 0, NULL);     
     return true;
 }
@@ -157,6 +158,7 @@ bool command_gtg(const int fd)
 bool command_gtg_on_error(const int fd)
 {
     serial_fd_do(fd, ":CONT:EXEC", NULL, 0, NULL); 
+    sleep(1);  // 9-13-18 attempt to fix this working intermittently 
     serial_fd_do(fd, ":CONT:GTGR", NULL, 0, NULL);    
     serial_fd_do(fd, "*CLS", NULL, 0, NULL);         
     return true;

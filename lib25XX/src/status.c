@@ -16,6 +16,7 @@ typedef struct LastStatus {
     OPR opr;
 } LastStatus;
 
+// to do, list form for these macros?
 #define CHECK_ERROR_BIT(INT, COND) \
 do { if(INT & COND) \
          ERROR_PRINT("Error: " #COND); } \
