@@ -25,11 +25,11 @@ TARGET := $(LIBDIR)/lib25XX.a
 
 all: $(TARGET)
 
-debug: CFLAGS += -Wno-unused-parameter -DDEBUG -g
+debug: CFLAGS += -DDEBUG -g
 debug: $(TARGET)
 
 #build static library
-$(TARGET): $(BUILDDIR)/serial.o $(BUILDDIR)/test.o $(BUILDDIR)/status.o $(BUILDDIR)/utility.o $(BUILDDIR)/command.o $(BUILDDIR)/control.o $(BUILDDIR)/lsu.o
+$(TARGET): $(BUILDDIR)/serial.o $(BUILDDIR)/test.o $(BUILDDIR)/utility.o $(BUILDDIR)/test25XX.o
 	mkdir -p $(@D)
 	mkdir -p log
 	ar rcs $@ $^
@@ -42,23 +42,11 @@ $(BUILDDIR)/test.o: $(SRCDIR)/test.c
 	mkdir -p $(BUILDDIR)	
 	$(CC) -c $^ $(CFLAGS) -o $@
 
-$(BUILDDIR)/status.o: $(SRCDIR)/status.c
-	mkdir -p $(BUILDDIR)	
-	$(CC) -c $^ $(CFLAGS) -o $@
-
 $(BUILDDIR)/utility.o: $(SRCDIR)/utility.c
 	mkdir -p $(BUILDDIR)	
 	$(CC) -c $^ $(CFLAGS) -o $@
 
-$(BUILDDIR)/command.o: $(SRCDIR)/command.c
-	mkdir -p $(BUILDDIR)	
-	$(CC) -c $^ $(CFLAGS) -o $@
-
-$(BUILDDIR)/control.o: $(SRCDIR)/control.c
-	mkdir -p $(BUILDDIR)	
-	$(CC) -c $^ $(CFLAGS) -o $@
-
-$(BUILDDIR)/lsu.o: $(SRCDIR)/lsu.c
+$(BUILDDIR)/test25XX.o: $(SRCDIR)/test25XX.c
 	mkdir -p $(BUILDDIR)	
 	$(CC) -c $^ $(CFLAGS) -o $@
 

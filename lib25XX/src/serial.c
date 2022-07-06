@@ -5,7 +5,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/select.h>
-#include <termios.h>
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
@@ -60,48 +59,9 @@ static void *serial_check_device(void *_instance);
 
 int serial_init_device(const char *path)
 {
-    int device = open(path, O_RDWR | O_NOCTTY | O_NDELAY);
-
-    if (device == -1)
-    {
-        error_serial("Unable to open serial device");
-        return device;
-    }
-    else
-    {
-        debug_serial("serial opened");
-    }
-
-    //setup after opening
-    fcntl(device, F_SETFL, 0);
-    struct termios options;
-    tcgetattr(device, &options);
-    
-    
-    //Nonblocking read
-    fcntl(device, F_SETFL, FNDELAY);
-    
-    options.c_cflag |= (CLOCAL | CREAD);
-    
-    //9600
-    cfsetispeed(&options, B9600);
-    cfsetospeed(&options, B9600);    
-    
-    //8N1
-    options.c_cflag &= ~PARENB;
-    options.c_cflag &= ~CSTOPB;
-    options.c_cflag &= ~CSIZE;
-    options.c_cflag |= CS8;
-    
-    //Canonical input seperate by LF (0x0A)
-    options.c_lflag |= (ICANON);     
-    
-    //turn on software handshaking  
-    options.c_iflag |= (IXON | IXOFF | IXANY);  
-    
-    //set it finally
-    tcsetattr(device, TCSANOW, &options);    
-
+    (void)path;
+    static int device = 10;
+    device++;
     return device;
 }
 
@@ -127,8 +87,6 @@ void *serial_check_device(void *_instance)
 {
     SDevInstance *instance = (SDevInstance*)_instance;
     SCPIDeviceManager *sdm = instance->sDev->sdm;
-    const char *master_sn = instance->sDev->master_sn;
-    const char *slave_sn = instance->sDev->slave_sn;
     
     bool bRet = true;
     
@@ -139,54 +97,32 @@ void *serial_check_device(void *_instance)
         error_serial("%s could not be initialized", instance->device);
         return (void*)true;    
     }
-    
-    
-    char buf[256];
-    if(!serial_fd_do(fd, "*IDN?", buf, sizeof(buf), 0))
-    {
-        debug_serial("*IDN? failed for device: %s", instance->device);
-    }
-    else
-    {
-        const char *device_name = "SCPI Unknown";
-        char sn[32];
-        if(parse_sn(sn, buf))
-        {
-            if(strncmp(sn, master_sn, strlen(master_sn)) == 0) 
-            {
-                sdm->master.fd = fd;
-                debug_serial("SCPI Master set to fd %d", fd); 
-                device_name = "SCPI Master";                       
-            }
-            else if(strncmp(sn, slave_sn, strlen(slave_sn)) == 0)
-            {
-                sdm->slave.fd = fd;
-                debug_serial("SCPI Slave set to fd %d", fd);
-                device_name = "SCPI Slave";
-            }
-            else
-            {
-                error_serial("SN %s not expected", sn);
-                bRet = false;
-            }
-        }
-        else if(strstr(buf, "LSU") != NULL)
-        {
-            sdm->lsu.fd = fd;
-            debug_serial("LSU set to fd %d", fd);
-            device_name = "SCPI LSU";
-        }
-        else
-        {
-            error_serial("Unknown SCPI device connected");
-            bRet = false;
-        }
-        OUTPUT_PRINT("%s: %s", device_name, buf);
-        serial_fd_do(fd, "*CLS", NULL, 0, NULL);        
-    }
-    
-    return (void*)bRet;
 
+    const char *device_name = "SCPI Unknown";
+    switch(fd)
+    {
+        case 11:
+        sdm->master.fd = fd;
+        debug_serial("SCPI Master set to fd %d", fd); 
+        device_name = "SCPI Master";   
+        break;
+        case 12:
+        sdm->slave.fd = fd;
+        debug_serial("SCPI Slave set to fd %d", fd);
+        device_name = "SCPI Slave";
+        break;
+        case 13:
+        sdm->lsu.fd = fd;
+        debug_serial("LSU set to fd %d", fd);
+        device_name = "SCPI LSU";
+        break;
+        default:
+        error_serial("Unknown SCPI device connected");
+        bRet = false;
+        break;
+    }
+    (void)device_name;
+    return (void*)bRet;
 }
 
 bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slave_sn)
@@ -201,55 +137,30 @@ bool serial_init(SCPIDeviceManager *sdm, const char *master_sn, const char *slav
     sdm->slave.fd = -1;
     sdm->lsu.fd = -1;
     bool bRet = true;
-    glob_t glob_results;
+
+    //check each possible device in parallel
+    SDevGlobal sdg;
+    sdg.sdm = sdm;
+    sdg.master_sn = master_sn;
+    sdg.slave_sn = slave_sn;
     
-    #if (SERIAL_MODE & SERIAL_DEVICE_USB)
-        const char *globstring = "/dev/ttyUSB*";
-    #elif (SERIAL_MODE & SERIAL_DEVICE_COM)
-        const char *globstring = "/dev/ttyS*";
-    #elif (SERIAL_MODE & SERIAL_DEVICE_ETHERNET)
-        OUTPUT_PRINT("WARNING: Ethernet device not implemented, loading from /dev/ttyS*");
-        const char *globstring = "/dev/ttyS*";
-    #else
-        #error "UNKNOWN SERIAL MODE"
-    #endif
-
-    #ifdef DEBUG
-    OUTPUT_PRINT("ls /dev/");
-    system("ls /dev/");
-    #endif
-
-    if(glob(globstring, 0, NULL, &glob_results) == 0)
+    SDevInstance sdi[3];
+    pthread_t threads[3];
+    for(uint i = 0; i < 3; i++)
     {
-        //check each possible device in parallel
-        SDevGlobal sdg;
-        sdg.sdm = sdm;
-        sdg.master_sn = master_sn;
-        sdg.slave_sn = slave_sn;
-        
-        SDevInstance sdi[glob_results.gl_pathc];
-        pthread_t threads[glob_results.gl_pathc];
-        for(uint i = 0; i < glob_results.gl_pathc; i++)
-        {
-            sdi[i].sDev = &sdg;
-            sdi[i].device = glob_results.gl_pathv[i];
-            pthread_create(&threads[i], NULL, &serial_check_device, &sdi[i]);
-        }  
-        
-        for(uint i = 0; i < glob_results.gl_pathc; i++)
-        {
-            bool tempRet;
-            pthread_join(threads[i], (void**)&tempRet);
-            if(!tempRet)
-                bRet = false;
-        }    
-    }
-    else
+        sdi[i].sDev = &sdg;
+        sdi[i].device = "";
+        pthread_create(&threads[i], NULL, &serial_check_device, &sdi[i]);
+    }  
+    
+    for(uint i = 0; i < 3; i++)
     {
-        ERROR_PRINT("Error, No serial devices found");
-        bRet = false;
-    }
-    globfree(&glob_results); 
+        bool tempRet;
+        pthread_join(threads[i], (void**)&tempRet);
+        if(!tempRet)
+            bRet = false;
+    }    
+
     SDM = *sdm;
     
     return bRet;
@@ -264,27 +175,14 @@ void update_last_time()
 
 int serial_try_read(const int fd, char *buf, const size_t bufsize)
 {
-    int n;
+    (void)fd;
+    (void)buf;
+    (void)bufsize;
     #ifdef DELAY_BEFORE_SERIAL_READ
         struct timespec ts;
         SLEEP_MS(&ts, DELAY_BEFORE_SERIAL_READ);
-    #endif 
-    if((n = read(fd, buf, bufsize)) > 0)
-    {
-        update_last_time();
-        buf[n-1] = '\0';
-        log_serial("RECV|t=%llu|(%d): %s", time_in_ms(), n, buf);
-        
-        char stuff[256];
-        ssize_t z;     
-        if((z = read(fd, stuff, sizeof(stuff))) > 0)
-            debug_serial("WHY is there DATA: (%ld) %s", z, stuff);
-    }
-    #ifdef IGNORE_1BYTE_READ
-    if(n == 1)
-        n = 0;
     #endif
-    return n;
+    return -1;
 }
 
 int serial_read_or_timeout(const int fd, char *buf, const size_t bufsize, const uint64_t timeout)
@@ -303,11 +201,8 @@ bool serial_integer_cmd(const int fd, const char *cmd, int *result)
          *result = atoi(buf);
           return true;
     }
- 
     return false;   
 }
-
-
 
 #define TIME_TO_WAIT 100
 void wait_for_time_to_write()
@@ -322,6 +217,7 @@ void wait_for_time_to_write()
 
 bool serial_write(const int fd, const char *str)
 {   
+    (void)fd;
     //store in writeable area, append message end character
     char buf[256];
     strcpy(buf, str);
@@ -330,7 +226,7 @@ bool serial_write(const int fd, const char *str)
 
     wait_for_time_to_write();
     
-    bool bRet = (write(fd, buf, message_len) > 0);
+    bool bRet = false;
     
     //print what we just sent
     buf[message_len-1] = '\0';
@@ -357,8 +253,11 @@ bool serial_fd_do(const int fd, const char *cmd, void *result, size_t result_siz
     //DEBUG_PRINT("%p result", result);
 
     //Fail if a write fails and still fails after a sleep  
-    if(((!serial_write(fd, cmd)) && (sleep(4) >= 0))&&  (!serial_write(fd, cmd)))
-        return false;
+    if(!serial_write(fd, cmd))
+    {
+        sleep(4);
+        if(!serial_write(fd, cmd)) return false;
+    }
 
     //Read for one second max
     if((*num_result_read = serial_read_or_timeout(fd, result, result_size, 1000)) > 0) 
@@ -383,10 +282,7 @@ bool serial_fd_do(const int fd, const char *cmd, void *result, size_t result_siz
 
 void serial_close(SCPIDeviceManager *sdm)
 {
-    close(sdm->master.fd);
-    close(sdm->slave.fd);
-    close(sdm->lsu.fd);
-
+    (void)sdm;
     #ifdef LOG_SERIAL
         FDM_close(FDM_SER_LOG);        
     #endif 

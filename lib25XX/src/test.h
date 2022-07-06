@@ -1,15 +1,7 @@
 #pragma once
 #include <stdbool.h>
 
-typedef enum {
-    TC_UNKNOWN = 0,
-    TC_RUN = 1 << 0,
-    TC_PREV = 1 << 1,
-    TC_SKIP = 1 << 2
-} TEST_CHOICE;
-
-typedef TEST_CHOICE (*tc_choice)(void);
-typedef bool (*yes_or_no_func)();
+#include "test25XX.h"
 
 typedef struct UserFunc {
     const tc_choice tc;
@@ -30,12 +22,4 @@ void test_run_all(UserFunc *user_func);
     const char *setup; \
     const char *user_task; \
 }
-
-
-
-
-
-
-
-
 

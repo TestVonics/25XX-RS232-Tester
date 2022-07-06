@@ -27,7 +27,7 @@ TARGET := $(BINDIR)/25XXTester
 
 all: $(TARGET)
 
-debug: CFLAGS += -Wno-unused-parameter -DDEBUG -g
+debug: CFLAGS += -DDEBUG -g
 debug: $(TARGET)
 
 #build static library

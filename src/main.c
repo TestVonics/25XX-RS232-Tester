@@ -12,9 +12,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 
-#include "utility.h"
-#include "test.h"
-#include "serial.h"
+#include "test25XX.h"
 
 #ifdef __CYGWIN__
 #define NO_RESET_ATEXIT
@@ -40,7 +38,6 @@ void reset_terminal_mode();
 
 //my prototypes
 TEST_CHOICE my_tc();
-int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize);
 char *add_input(char *buf, size_t buflen);
 bool yes_no();
 
@@ -64,10 +61,10 @@ bool yes_no();
 
 
 int main(int argc, char **argv)
-{    
-    SCPIDeviceManager sdm;
-    
-    if(!lib_init(&sdm, get_master_id, get_slave_id, get_tester_name, yes_no))
+{
+    (void)argc;
+    (void)argv;
+    if(!test25XX_init(get_master_id, get_slave_id, get_tester_name, yes_no, my_tc))
     {
         return 1;
     }    
@@ -75,11 +72,10 @@ int main(int argc, char **argv)
     #ifndef BLOCKING_KEYPRESS
     set_terminal_mode();
     #endif
+    
+    test25XX_run_tests();
 
-    UserFunc user_func = {&my_tc, &yes_no};
-    test_run_all(&user_func);
-
-    lib_close(&sdm);
+    test25XX_close();
 
     #ifdef NO_RESET_ATEXIT
     reset_terminal_mode();
@@ -136,17 +132,6 @@ TEST_CHOICE my_tc()
     } while(tc == TC_UNKNOWN);
     return tc;
 }
-
-int supply_predetermined_data(const IN_DATA_ID data_id, char *buf, const size_t bufsize)
-{        
-    if(data_id & IN_DATA_CTRL_ADTS_SN)
-        return snprintf(buf, bufsize, "%s", "231");
-    else if(data_id & IN_DATA_MEAS_ADTS_SN)
-        return snprintf(buf, bufsize, "%s", "245");
-
-    return -1;
-}
-
 
 struct termios orig_termios;
 

@@ -34,21 +34,13 @@ typedef enum FD_MASK {
 } FD_MASK;
 FD_MASK FDM_TEST_LOG;
 
-bool lib_init();
 bool log_init();
-void lib_close();
-typedef struct SCPIDeviceManager SCPIDeviceManager;
-
-typedef const char *(*get_buf_func)(void);
-typedef bool (*yes_or_no_func)();
-bool lib_init(SCPIDeviceManager  *sdm, get_buf_func master_sn, get_buf_func slave_sn, get_buf_func ask_name, yes_or_no_func yes_no);
-
+void log_close();
 FD_MASK FDM_register_fd(const int fd);
 void FDM_close(FD_MASK mask);
 ssize_t log_format_debug(const FD_MASK fdm, const char * const function_src, const char* const _format, ...);
 ssize_t log_format_line(const FD_MASK fdm, const char *const _format, ...);
 bool parse_sn(char *result, const char *src);
-yes_or_no_func Yes_No;
 
 #define OUTPUT_PRINT(fmt, ...) log_format_line(FDM_STDOUT | FDM_TEST_LOG, fmt, ##__VA_ARGS__)
 

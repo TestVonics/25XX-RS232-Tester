@@ -24,7 +24,6 @@ typedef enum {
     const char *pt_rate; \
 }
 typedef _ControlTest ControlTest;
-bool control_run_test(const ControlTest *test);
 
 
 typedef struct LeakTest {
@@ -35,7 +34,6 @@ typedef struct LeakTest {
     const char *delay_seconds;
     bool testing_master_unit;
 } LeakTest;
-bool control_run_leak_test(const LeakTest *test);
 
 
 typedef struct SingleChannelTest {
@@ -52,12 +50,8 @@ typedef struct SingleChannelTest {
         const char *pt_rate;
     };    
 } SingleChannelTest;
-bool control_single_channel_test(const SingleChannelTest *test);
 
 
 typedef bool (*Control_On_Error)(const int fd);
 typedef bool (*Control_Start_Func)(const int fd);
 typedef bool (*Control_EachCycle)(bool *result);
-
-bool control(const uint64_t exp_time, const char *ps_units, const char *pt_units, OPR success_mask, Control_Start_Func start_func, Control_On_Error on_error, Control_EachCycle cycle_func, const int adts_fd);
-

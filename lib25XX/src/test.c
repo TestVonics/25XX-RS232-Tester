@@ -4,17 +4,20 @@
 #include <string.h>
 #include <stdatomic.h>
 #include <assert.h>
-
-#include "serial.h"
-#include "status.h"
 #include "test.h"
 #include "control.h"
 #include "utility.h"
-#include "command.h"
 #include "lsu.h"
+#include "test25XX.h"
 
 typedef _TEST TEST;
 typedef bool (*test_func)(const TEST *test);
+static bool dummy_test(const TEST *test)
+{
+    (void)test;
+    return true;
+}
+
 typedef enum TEST_T{
     TEST_T_CTRL,
     TEST_T_MEAS,
@@ -47,7 +50,7 @@ typedef struct ControlTestSet{
 static ControlTestSet ControlTests = {
 {
     TEST_T_CTRL,
-    (test_func)(control_run_test),
+    &dummy_test,
     "ADTS Control",
     true
 }, 
@@ -111,7 +114,7 @@ typedef struct SingleChannelTestSet {
 static SingleChannelTestSet SingleChannelTests = {
 {
     TEST_T_MEAS,
-    (test_func)(control_single_channel_test),
+    &dummy_test,
     "ADTS Control and Measure",
     true
 }, .tests =
@@ -136,7 +139,7 @@ typedef struct LSUValveTestSet {
 static LSUValveTestSet LSUValveTests = {
 {
     TEST_T_LSUV,
-    (test_func)(lsu_valve_test),
+    &dummy_test,
     strLSUOpenAndClose,
     false
 }, .tests = 
@@ -207,7 +210,7 @@ typedef struct LeakTestSet {
 LeakTestSet LeakTests = {
 {
     TEST_T_LEAK,
-    (test_func)control_run_leak_test,
+    &dummy_test,
     "ADTS Leak Test",
     false    
 }, {
@@ -311,13 +314,8 @@ void test_run_all(UserFunc *user_func)
                 if(!at_ground)
                 {        
                     OUTPUT_PRINT("Test setup - Controlling to ground");
-                    command_GTG_eventually(serial_get_SDM()->master.fd);
                 }
-                at_ground = false;
-
-                //get rid of leftovers
-                if(!serial_fd_do(serial_get_SDM()->master.fd, "*CLS", NULL, 0, NULL))
-                    return;                
+                at_ground = false;            
             }
             
             TEST *test;
@@ -390,7 +388,6 @@ void test_run_all(UserFunc *user_func)
         if(TestSets[i]->init_master_before_each_test)
         {
             OUTPUT_PRINT("Test set complete - Controlling to ground");
-            command_GTG_eventually(serial_get_SDM()->master.fd);
             at_ground = true;
         }
     }
@@ -399,14 +396,12 @@ void test_run_all(UserFunc *user_func)
     
     //control to ground, remote mode is no longer needed
     if(!at_ground)
-    {  
-        serial_fd_do(serial_get_SDM()->master.fd, ":CONT:GTGR", NULL, 0, NULL);
+    {
         OUTPUT_PRINT("Sent Control to ground command, Exiting");
     }
     else
+    {
         OUTPUT_PRINT("Exiting");
-
-    serial_fd_do(serial_get_SDM()->master.fd, ":SYST:REMOTE DISABLE", NULL, 0, NULL); 
-    serial_fd_do(serial_get_SDM()->slave.fd, ":SYST:REMOTE DISABLE", NULL, 0, NULL); 
+    }
 }
 
