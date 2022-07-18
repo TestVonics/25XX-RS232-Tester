@@ -27,9 +27,9 @@ This task is an open ended problem to demonstrate basic C knowledge and the abil
 
 ## Submission
 
-Make a tarball of the repo: `make clean && cd .. && tar -cvz -f YourName.tar.gz 25XX-RS232-Tester`
+`make clean` and create a tarball of the repo (including the `.git` folder): `make clean && cd .. && tar -cvz -f YourName.tar.gz 25XX-RS232-Tester`, DO NOT tar binaries, so your submission isn't picked up as virus by various filters.
 
-Email it to `gavin.hayes at testvonics dawt com` either as a link (Google Drive, Dropbox, etc) or as an attachment.
+Email it to `hayesgav at gmail dawt com` either as link (Google Drive, Dropbox, etc) or attachment. Then, email me WITHOUT the submission to `gavin.hayes at testvonics dawt com` letting me know you submitted. I will reply back to confirm when I have recieved your submission. Sorry for the complexity, we are in the process of migrating email providers.
 
 ## Copyright 2022 Raptor Scientific
 
