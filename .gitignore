@@ -51,10 +51,8 @@ Module.symvers
 Mkfile.old
 dkms.conf
 
-#bin and build directories
-lib*
-bin*
-build*
+# bin directory
+bin/*
 
 #other files
 *.log
